@@ -5,30 +5,28 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  subscriptionId: '7a7ea6d4-73d3-49b2-9798-673b865278de'
-  resourceGroupName: 'test'
+  azureSubscription: 'azure-service-connection'  # Replace with your Azure DevOps service connection name
   location: 'Central India'
-  templateFile: 'infra/main.bicep'
+  rgName: 'test'
+  appServicePlanName: 'my-demo-webapp-0213-plan'
+  webAppName: 'my-demo-webapp-0213'
+  skuName: 'B1'
 
 steps:
-# ===================================
-# 1️⃣ Deploy full infra at subscription scope
-# ===================================
 - task: AzureCLI@2
-  displayName: 'Deploy Resource Group, App Service Plan, and Web App using Bicep'
   inputs:
-    azureSubscription: 'azure-service-connection'  # Replace this
+    azureSubscription: '$(azureSubscription)'
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
-    workingDirectory: '$(System.DefaultWorkingDirectory)'
     inlineScript: |
-      echo "Current working directory: $(pwd)"
-      echo "Files in working directory:"
-      ls -R
+      echo "Deploying infrastructure using Bicep..."
 
-      echo "Deploying full infrastructure using Bicep..."
       az deployment sub create \
-        --name create-webapp-deployment \
-        --location "${location}" \
-        --template-file "$(System.DefaultWorkingDirectory)/infra/main.bicep" \
-        --parameters resourceGroupName=${resourceGroupName} location="${location}"
+        --location "$(location)" \
+        --template-file infra/main.bicep \
+        --parameters rgName=$(rgName) location="$(location)" \
+                     appServicePlanName=$(appServicePlanName) \
+                     webAppName=$(webAppName) \
+                     skuName=$(skuName)
+
+      echo "Deployment completed successfully!"
