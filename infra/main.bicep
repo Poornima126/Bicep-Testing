@@ -1,32 +1,40 @@
-targetScope = 'subscription'
-
-@description('Resource Group name')
-param resourceGroupName string = 'test'
-
-@description('Location for the resources')
-param location string = 'Central India'
+@description('Location for all resources')
+param location string = resourceGroup().location
 
 @description('App Service Plan name')
 param appServicePlanName string = 'my-demo-webapp-0213-plan'
 
-@description('Web App name')
+@description('App Service name')
 param webAppName string = 'my-demo-webapp-0213'
 
-// Create Resource Group
-resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
-  name: resourceGroupName
-  location: location
-}
+@description('App Service pricing tier')
+param skuName string = 'B1'
 
-// Deploy App Service and Plan inside the RG
-module webappModule 'webapp.bicep' = {
-  name: 'webappDeployment'
-  scope: rg
-  params: {
-    location: location
-    appServicePlanName: appServicePlanName
-    webAppName: webAppName
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+  name: appServicePlanName
+  location: location
+  sku: {
+    name: skuName
+    tier: 'Basic'
+    size: skuName
+    capacity: 1
+  }
+  properties: {
+    reserved: false // false = Windows, true = Linux
   }
 }
 
-output webAppUrl string = webappModule.outputs.webAppUrl
+resource webApp 'Microsoft.Web/sites@2023-12-01' = {
+  name: webAppName
+  location: location
+  properties: {
+    serverFarmId: appServicePlan.id
+    siteConfig: {
+      netFrameworkVersion: 'v8.0'
+      alwaysOn: true
+    }
+    httpsOnly: true
+  }
+}
+
+output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
