@@ -5,16 +5,17 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'   # Service connection name in Azure DevOps
+  azureSubscription: 'azure-service-connection'   # Azure DevOps service connection name
   resourceGroupName: 'test'
   location: 'Central India'
   templateFile: 'infra/main.bicep'
   functionAppName: 'my-node-funcapp-0213'
-  packagePath: '$(System.DefaultWorkingDirectory)/functionapp.zip'
+  appCodeBranch: 'function-app-code'              # Branch with your Node.js app code
+  repoUrl: 'https://github.com/Poornima126/Bicep-Testing.git'  # 👈 Update this
 
 steps:
 
-# Step 1: Create Resource Group if it doesn't exist
+# Step 1: Create Resource Group (if not exists)
 - task: AzureCLI@2
   displayName: 'Create Resource Group (if not exists)'
   inputs:
@@ -30,7 +31,7 @@ steps:
         echo "Resource group $(resourceGroupName) already exists."
       fi
 
-# Step 2: Deploy Function App using Bicep
+# Step 2: Deploy Function App infrastructure using Bicep
 - task: AzureCLI@2
   displayName: 'Deploy Function App (Bicep)'
   inputs:
@@ -38,19 +39,28 @@ steps:
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
-      echo "Deploying Function App and dependencies..."
+      echo "Deploying Function App infrastructure..."
       az deployment group create \
         --resource-group $(resourceGroupName) \
         --template-file $(templateFile) \
         --parameters location="$(location)" \
         --only-show-errors
 
-# Step 3: Deploy the Function App Code (ZIP)
+# Step 3: Clone function app code branch (unzipped code)
+- script: |
+    echo "Cloning function app code from branch $(appCodeBranch)..."
+    git clone --branch $(appCodeBranch) $(repoUrl) function-app-code
+    cd function-app-code
+    echo "Running npm install..."
+    npm install
+    echo "Code ready for deployment."
+  displayName: 'Clone and prepare function app code'
+
+# Step 4: Deploy unzipped function app code
 - task: AzureFunctionApp@2
   displayName: 'Deploy Function App Code'
   inputs:
     azureSubscription: $(azureSubscription)
     appType: 'functionApp'
     appName: $(functionAppName)
-    package: $(packagePath)
-
+    package: '$(System.DefaultWorkingDirectory)/function-app-code'
