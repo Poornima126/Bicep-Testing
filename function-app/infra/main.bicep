@@ -1,5 +1,3 @@
-targetScope = 'resourceGroup'
-
 @description('Location for all resources')
 param location string = resourceGroup().location
 
@@ -7,17 +5,15 @@ param location string = resourceGroup().location
 param functionAppName string = 'my-node-funcapp-0213'
 
 @description('App Service Plan name')
-param appServicePlanName string = 'my-node-funcapp-0213-plan'
+param appServicePlanName string = 'my-funcapp-plan-0213'
 
-@description('Storage account name (must be unique)')
-param storageAccountName string = 'funcappstorage0213'
+@description('Storage account name (must be globally unique)')
+param storageAccountName string = 'mynodestorage0213'
 
-@description('Node.js version')
-param nodeVersion string = '~20'
-
-@description('Pricing SKU')
+@description('App Service Plan SKU')
 param skuName string = 'B1'
 
+// Storage Account (required for Function App)
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
   location: location
@@ -25,22 +21,28 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
     name: 'Standard_LRS'
   }
   kind: 'StorageV2'
+  properties: {
+    minimumTlsVersion: 'TLS1_2'
+  }
 }
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-01-01' = {
+// App Service Plan
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
   location: location
   sku: {
     name: skuName
     tier: 'Basic'
+    size: skuName
+    capacity: 1
   }
-  kind: 'windows'
   properties: {
-    reserved: false
+    reserved: false // false = Windows
   }
 }
 
-resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
+// Function App
+resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
   name: functionAppName
   location: location
   kind: 'functionapp'
@@ -48,6 +50,10 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
     serverFarmId: appServicePlan.id
     siteConfig: {
       appSettings: [
+        {
+          name: 'AzureWebJobsStorage'
+          value: storageAccount.properties.primaryEndpoints.blob
+        }
         {
           name: 'FUNCTIONS_EXTENSION_VERSION'
           value: '~4'
@@ -58,13 +64,11 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         }
         {
           name: 'WEBSITE_NODE_DEFAULT_VERSION'
-          value: nodeVersion
-        }
-        {
-          name: 'AzureWebJobsStorage'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=core.windows.net'
+          value: '~18'
         }
       ]
+      use32BitWorkerProcess: true
+      alwaysOn: true
     }
     httpsOnly: true
   }
