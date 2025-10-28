@@ -5,9 +5,9 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'   # Azure DevOps service connection name
-  resourceGroupName: 'test'                    # Resource Group name
-  location: 'Central India'                    # Azure region
+  azureSubscription: 'azure-service-connection'   # Name of your Azure DevOps service connection
+  resourceGroupName: 'test'                      # Resource Group name
+  location: 'Central India'                      # Azure region
   templateFile: 'infra/main.bicep'
 
 steps:
@@ -27,7 +27,7 @@ steps:
       fi
 
 - task: AzureCLI@2
-  displayName: 'Deploy Bicep Template to Resource Group'
+  displayName: 'Deploy App Service and Plan using Bicep'
   inputs:
     azureSubscription: $(azureSubscription)
     scriptType: 'bash'
