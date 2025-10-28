@@ -5,37 +5,47 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'   # Azure DevOps service connection name
-  resourceGroupName: 'test'                    # Resource Group name
-  location: 'Central India'                    # Azure region
+  azureSubscription: 'azure-service-connection'   # Replace with your actual Azure DevOps Service Connection name
+  location: 'Central India'
+  rgName: 'test'
   templateFile: 'infra/main.bicep'
 
 steps:
 - task: AzureCLI@2
   displayName: 'Create Resource Group (if not exists)'
   inputs:
-    azureSubscription: $(azureSubscription)
-    scriptType: 'bash'
-    scriptLocation: 'inlineScript'
+    azureSubscription: '$(azureSubscription)'
+    scriptType: bash
+    scriptLocation: inlineScript
     inlineScript: |
-      echo "Checking if resource group $(resourceGroupName) exists..."
-      if ! az group show --name $(resourceGroupName) &>/dev/null; then
-        echo "Creating resource group: $(resourceGroupName)"
-        az group create --name $(resourceGroupName) --location "$(location)"
+      echo "Checking if resource group $(rgName) exists..."
+      if [ "$(az group exists -n $(rgName))" = "false" ]; then
+        echo "Creating resource group: $(rgName)"
+        az group create --name $(rgName) --location "$(location)"
       else
-        echo "Resource group $(resourceGroupName) already exists."
+        echo "Resource group $(rgName) already exists."
       fi
 
 - task: AzureCLI@2
-  displayName: 'Deploy Bicep Template to Resource Group'
+  displayName: 'Deploy App Service and Plan using Bicep'
   inputs:
-    azureSubscription: $(azureSubscription)
-    scriptType: 'bash'
-    scriptLocation: 'inlineScript'
+    azureSubscription: '$(azureSubscription)'
+    scriptType: bash
+    scriptLocation: inlineScript
     inlineScript: |
-      echo "Deploying App Service and Plan to $(resourceGroupName)..."
+      echo "Deploying infrastructure using Bicep..."
       az deployment group create \
-        --resource-group $(resourceGroupName) \
+        --resource-group $(rgName) \
         --template-file $(templateFile) \
-        --parameters location="$(location)"
+        --output json
+
+- task: AzureCLI@2
+  displayName: 'Show App Service URL'
+  inputs:
+    azureSubscription: '$(azureSubscription)'
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      echo "Fetching App Service URL..."
+      az webapp show -n my-demo-webapp-0213 -g $(rgName) --query "defaultHostName" -o tsv
 

@@ -1,41 +1,55 @@
-@description('Location for all resources')
-param location string = resourceGroup().location
-
-@description('App Service Plan name')
+// ==========================
+// Parameters
+// ==========================
+param location string = 'Central India'
+param rgName string = 'test'
 param appServicePlanName string = 'my-demo-webapp-0213-plan'
-
-@description('App Service name')
 param webAppName string = 'my-demo-webapp-0213'
 
-@description('App Service pricing tier')
-param skuName string = 'B1'
+// ==========================
+// Resource Group (if not exists)
+// ==========================
+// Note: Resource Group is usually created outside the template in Azure CLI task,
+// but if your pipeline runs at subscription scope, this will create it.
+resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
+  name: rgName
+  location: location
+}
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+// ==========================
+// App Service Plan (Basic - Windows)
+// ==========================
+resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
   name: appServicePlanName
   location: location
   sku: {
-    name: skuName
+    name: 'B1'
     tier: 'Basic'
-    size: skuName
+    size: 'B1'
     capacity: 1
   }
+  kind: 'app'
   properties: {
-    reserved: false // false = Windows, true = Linux
+    reserved: false // false = Windows
   }
 }
 
-resource webApp 'Microsoft.Web/sites@2023-12-01' = {
+// ==========================
+// Web App (.NET 8 on Windows)
+// ==========================
+resource webApp 'Microsoft.Web/sites@2022-09-01' = {
   name: webAppName
   location: location
   properties: {
     serverFarmId: appServicePlan.id
     siteConfig: {
-      netFrameworkVersion: 'v8.0'
-      alwaysOn: true
+      netFrameworkVersion: 'v8.0' // .NET 8 runtime
     }
     httpsOnly: true
   }
+  dependsOn: [
+    appServicePlan
+  ]
 }
 
-output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
-
+output webAppUrl string = 'https://${webAppName}.azurewebsites.net'
