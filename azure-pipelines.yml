@@ -11,19 +11,24 @@ variables:
   templateFile: 'infra/main.bicep'
 
 steps:
-# ===============================
+# ===================================
 # 1️⃣ Deploy full infra at subscription scope
-# ===============================
+# ===================================
 - task: AzureCLI@2
   displayName: 'Deploy Resource Group, App Service Plan, and Web App using Bicep'
   inputs:
-    azureSubscription: 'azure-service-connection'
+    azureSubscription: 'azure-service-connection'  # Replace this
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
+    workingDirectory: '$(System.DefaultWorkingDirectory)'
     inlineScript: |
+      echo "Current working directory: $(pwd)"
+      echo "Files in working directory:"
+      ls -R
+
       echo "Deploying full infrastructure using Bicep..."
       az deployment sub create \
         --name create-webapp-deployment \
         --location "${location}" \
-        --template-file ${templateFile} \
+        --template-file "$(System.DefaultWorkingDirectory)/infra/main.bicep" \
         --parameters resourceGroupName=${resourceGroupName} location="${location}"
