@@ -1,3 +1,5 @@
+targetScope = 'resourceGroup'
+
 @description('Location for all resources')
 param location string = resourceGroup().location
 
@@ -20,29 +22,41 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
     size: skuName
     capacity: 1
   }
-  kind: 'app' // Windows-based
+  kind: 'app' // Windows plan
   properties: {
-    reserved: false // false = Windows, true = Linux
+    reserved: false // false = Windows
   }
 }
 
-/* Web App - .NET 8 Runtime */
+/* Web App - .NET 8 Runtime Stack */
 resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   name: webAppName
   location: location
   kind: 'app'
   properties: {
     serverFarmId: appServicePlan.id
+    httpsOnly: true
     siteConfig: {
-      netFrameworkVersion: 'v8.0'
       alwaysOn: true
       http20Enabled: true
+      netFrameworkVersion: 'v8.0' // ✅ Defines .NET 8 runtime
     }
-    httpsOnly: true
   }
   dependsOn: [
     appServicePlan
   ]
 }
 
+/* Explicitly set the runtime stack metadata so portal shows .NET 8 */
+resource configMetadata 'Microsoft.Web/sites/config@2023-12-01' = {
+  parent: webApp
+  name: 'metadata'
+  properties: {
+    CURRENT_STACK: 'dotnet'    // ✅ Show ".NET" in portal
+    FRAMEWORK: 'dotnet'
+    FRAMEWORK_VERSION: 'v8.0'  // ✅ Show ".NET 8"
+  }
+}
+
 output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
+
