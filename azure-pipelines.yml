@@ -1,16 +1,20 @@
 trigger:
-- main
+- function-app
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'   # Name of your Azure DevOps service connection
-  resourceGroupName: 'test'                      # Resource Group name
-  location: 'Central India'                      # Azure region
+  azureSubscription: 'azure-service-connection'   # Service connection name in Azure DevOps
+  resourceGroupName: 'test'
+  location: 'Central India'
   templateFile: 'infra/main.bicep'
+  functionAppName: 'my-node-funcapp-0213'
+  packagePath: '$(System.DefaultWorkingDirectory)/functionapp.zip'
 
 steps:
+
+# Step 1: Create Resource Group if it doesn't exist
 - task: AzureCLI@2
   displayName: 'Create Resource Group (if not exists)'
   inputs:
@@ -26,15 +30,27 @@ steps:
         echo "Resource group $(resourceGroupName) already exists."
       fi
 
+# Step 2: Deploy Function App using Bicep
 - task: AzureCLI@2
-  displayName: 'Deploy App Service and Plan using Bicep'
+  displayName: 'Deploy Function App (Bicep)'
   inputs:
     azureSubscription: $(azureSubscription)
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
-      echo "Deploying App Service and Plan to $(resourceGroupName)..."
+      echo "Deploying Function App and dependencies..."
       az deployment group create \
         --resource-group $(resourceGroupName) \
         --template-file $(templateFile) \
-        --parameters location="$(location)"
+        --parameters location="$(location)" \
+        --only-show-errors
+
+# Step 3: Deploy the Function App Code (ZIP)
+- task: AzureFunctionApp@2
+  displayName: 'Deploy Function App Code'
+  inputs:
+    azureSubscription: $(azureSubscription)
+    appType: 'functionApp'
+    appName: $(functionAppName)
+    package: $(packagePath)
+
