@@ -1,27 +1,38 @@
-// ==========================
+// =======================================
+// Deployment Scope
+// =======================================
+targetScope = 'subscription'
+
+// =======================================
 // Parameters
-// ==========================
+// =======================================
+@description('Resource Group name')
+param resourceGroupName string = 'test'
+
+@description('Location for the resources')
 param location string = 'Central India'
-param rgName string = 'test'
+
+@description('App Service Plan name')
 param appServicePlanName string = 'my-demo-webapp-0213-plan'
+
+@description('Web App name')
 param webAppName string = 'my-demo-webapp-0213'
 
-// ==========================
-// Resource Group (if not exists)
-// ==========================
-// Note: Resource Group is usually created outside the template in Azure CLI task,
-// but if your pipeline runs at subscription scope, this will create it.
+// =======================================
+// Create Resource Group
+// =======================================
 resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
-  name: rgName
+  name: resourceGroupName
   location: location
 }
 
-// ==========================
-// App Service Plan (Basic - Windows)
-// ==========================
+// =======================================
+// App Service Plan (Windows - Basic)
+// =======================================
 resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
   name: appServicePlanName
   location: location
+  scope: rg
   sku: {
     name: 'B1'
     tier: 'Basic'
@@ -32,24 +43,25 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
   properties: {
     reserved: false // false = Windows
   }
+  dependsOn: [rg]
 }
 
-// ==========================
-// Web App (.NET 8 on Windows)
-// ==========================
+// =======================================
+// Web App (.NET 8)
+// =======================================
 resource webApp 'Microsoft.Web/sites@2022-09-01' = {
   name: webAppName
   location: location
+  scope: rg
   properties: {
     serverFarmId: appServicePlan.id
+    httpsOnly: true
     siteConfig: {
       netFrameworkVersion: 'v8.0' // .NET 8 runtime
+      alwaysOn: true
     }
-    httpsOnly: true
   }
-  dependsOn: [
-    appServicePlan
-  ]
+  dependsOn: [appServicePlan]
 }
 
 output webAppUrl string = 'https://${webAppName}.azurewebsites.net'

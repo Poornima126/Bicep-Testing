@@ -5,47 +5,25 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'   # Replace with your actual Azure DevOps Service Connection name
+  subscriptionId: '7a7ea6d4-73d3-49b2-9798-673b865278de'
+  resourceGroupName: 'test'
   location: 'Central India'
-  rgName: 'test'
   templateFile: 'infra/main.bicep'
 
 steps:
+# ===============================
+# 1️⃣ Deploy full infra at subscription scope
+# ===============================
 - task: AzureCLI@2
-  displayName: 'Create Resource Group (if not exists)'
+  displayName: 'Deploy Resource Group, App Service Plan, and Web App using Bicep'
   inputs:
-    azureSubscription: '$(azureSubscription)'
-    scriptType: bash
-    scriptLocation: inlineScript
+    azureSubscription: 'azure-service-connection'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
     inlineScript: |
-      echo "Checking if resource group $(rgName) exists..."
-      if [ "$(az group exists -n $(rgName))" = "false" ]; then
-        echo "Creating resource group: $(rgName)"
-        az group create --name $(rgName) --location "$(location)"
-      else
-        echo "Resource group $(rgName) already exists."
-      fi
-
-- task: AzureCLI@2
-  displayName: 'Deploy App Service and Plan using Bicep'
-  inputs:
-    azureSubscription: '$(azureSubscription)'
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      echo "Deploying infrastructure using Bicep..."
-      az deployment group create \
-        --resource-group $(rgName) \
-        --template-file $(templateFile) \
-        --output json
-
-- task: AzureCLI@2
-  displayName: 'Show App Service URL'
-  inputs:
-    azureSubscription: '$(azureSubscription)'
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      echo "Fetching App Service URL..."
-      az webapp show -n my-demo-webapp-0213 -g $(rgName) --query "defaultHostName" -o tsv
-
+      echo "Deploying full infrastructure using Bicep..."
+      az deployment sub create \
+        --name create-webapp-deployment \
+        --location "${location}" \
+        --template-file ${templateFile} \
+        --parameters resourceGroupName=${resourceGroupName} location="${location}"
