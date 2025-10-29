@@ -1,66 +1,60 @@
 trigger:
-- function-app
+- main
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'   # Azure DevOps service connection name
+  azureSubscription: 'azure-service-connection'
   resourceGroupName: 'test'
   location: 'Central India'
   templateFile: 'infra/main.bicep'
   functionAppName: 'my-node-funcapp-0213'
-  appCodeBranch: 'function-app-code'              # Branch with your Node.js app code
-  repoUrl: 'https://github.com/Poornima126/Bicep-Testing.git'  # 👈 Update this
+  storageAccountName: 'mynodestorage12345'   # must match what's in Bicep
 
 steps:
-
-# Step 1: Create Resource Group (if not exists)
 - task: AzureCLI@2
-  displayName: 'Create Resource Group (if not exists)'
+  displayName: 'Deploy Function App Infrastructure'
   inputs:
     azureSubscription: $(azureSubscription)
-    scriptType: 'bash'
-    scriptLocation: 'inlineScript'
-    inlineScript: |
-      echo "Checking if resource group $(resourceGroupName) exists..."
-      if ! az group show --name $(resourceGroupName) &>/dev/null; then
-        echo "Creating resource group: $(resourceGroupName)"
-        az group create --name $(resourceGroupName) --location "$(location)"
-      else
-        echo "Resource group $(resourceGroupName) already exists."
-      fi
-
-# Step 2: Deploy Function App infrastructure using Bicep
-- task: AzureCLI@2
-  displayName: 'Deploy Function App (Bicep)'
-  inputs:
-    azureSubscription: $(azureSubscription)
-    scriptType: 'bash'
-    scriptLocation: 'inlineScript'
+    scriptType: bash
+    scriptLocation: inlineScript
     inlineScript: |
       echo "Deploying Function App infrastructure..."
       az deployment group create \
         --resource-group $(resourceGroupName) \
         --template-file $(templateFile) \
-        --parameters location="$(location)" \
-        --only-show-errors
+        --parameters location="$(location)" || exit 1
 
-# Step 3: Clone function app code branch (unzipped code)
-- script: |
-    echo "Cloning function app code from branch $(appCodeBranch)..."
-    git clone --branch $(appCodeBranch) $(repoUrl) function-app-code
-    cd function-app-code
-    echo "Running npm install..."
-    npm install
-    echo "Code ready for deployment."
-  displayName: 'Clone and prepare function app code'
+- task: AzureCLI@2
+  displayName: 'Configure Storage Connection String for Function App'
+  inputs:
+    azureSubscription: $(azureSubscription)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      echo "Fetching storage account key..."
+      key=$(az storage account keys list --account-name $(storageAccountName) --query "[0].value" -o tsv)
+      conn="DefaultEndpointsProtocol=https;AccountName=$(storageAccountName);AccountKey=$key;EndpointSuffix=core.windows.net"
+      echo "Updating AzureWebJobsStorage setting..."
+      az functionapp config appsettings set \
+        --name $(functionAppName) \
+        --resource-group $(resourceGroupName) \
+        --settings AzureWebJobsStorage="$conn"
 
-# Step 4: Deploy unzipped function app code
+- task: Bash@3
+  displayName: 'Clone Function App Code'
+  inputs:
+    targetType: inline
+    script: |
+      git clone --branch function-app-code https://github.com/<your-username>/<your-repo>.git function-code
+      cd function-code
+      echo "Code cloned successfully"
+
 - task: AzureFunctionApp@2
   displayName: 'Deploy Function App Code'
   inputs:
     azureSubscription: $(azureSubscription)
-    appType: 'functionApp'
+    appType: functionApp
     appName: $(functionAppName)
-    package: '$(System.DefaultWorkingDirectory)/function-app-code'
+    package: '$(System.DefaultWorkingDirectory)/function-code'
