@@ -47,7 +47,7 @@ steps:
   inputs:
     targetType: inline
     script: |
-      git clone --branch function-app-code https://github.com/<your-username>/<your-repo>.git function-code
+      git clone --branch function-app-code https://github.com/Poornima126/Bicep-Testing.git function-code
       cd function-code
       echo "Code cloned successfully"
 
