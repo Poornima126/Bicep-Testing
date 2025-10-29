@@ -13,6 +13,9 @@ param appServicePlanName string = 'my-node-funcapp-0213-plan'
 @description('SKU for App Service Plan')
 param skuName string = 'B1'
 
+//
+// Storage Account
+//
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
   location: location
@@ -22,6 +25,9 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   kind: 'StorageV2'
 }
 
+//
+// App Service Plan (Windows - Basic tier)
+//
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
   location: location
@@ -34,13 +40,18 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   }
 }
 
+//
+// Function App (Node.js 20 on Windows)
+//
 resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
   name: functionAppName
   location: location
+  kind: 'functionapp'
   properties: {
     serverFarmId: appServicePlan.id
     siteConfig: {
       appSettings: [
+        // Required settings
         {
           name: 'FUNCTIONS_WORKER_RUNTIME'
           value: 'node'
@@ -49,17 +60,29 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
           name: 'FUNCTIONS_EXTENSION_VERSION'
           value: '~4'
         }
+        {
+          name: 'WEBSITE_NODE_DEFAULT_VERSION'
+          value: '~20'
+        }
+        {
+          name: 'AzureWebJobsStorage'
+          value: storageAccount.getConnectionString()
+        }
       ]
       alwaysOn: true
       use32BitWorkerProcess: true
     }
     httpsOnly: true
   }
-  kind: 'functionapp'
   dependsOn: [
     appServicePlan
+    storageAccount
   ]
 }
 
+//
+// Outputs
+//
 output functionAppName string = functionApp.name
+output functionAppUrl string = 'https://${functionApp.properties.defaultHostName}'
 output storageAccountName string = storageAccount.name
