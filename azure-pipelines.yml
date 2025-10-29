@@ -73,19 +73,15 @@ steps:
       echo "Code cloned successfully"
       ls -R function-app-code
 
-# Step 5: Install dependencies and create zip package
-- task: Bash@3
-  displayName: 'Install dependencies and zip Function App code'
+# Step 5: Archive Function App Code into ZIP
+- task: ArchiveFiles@2
+  displayName: 'Archive Function App code into ZIP'
   inputs:
-    targetType: inline
-    script: |
-      echo "Zipping Function App code..."
-      cd function-app-code/functionapp
-      npm install --omit=dev
-      zip -r ../../functionapp.zip .
-      cd ../..
-      echo "Zip package created successfully:"
-      ls -lh functionapp.zip
+    rootFolderOrFile: '$(System.DefaultWorkingDirectory)/function-app-code/functionapp/functionapp'
+    includeRootFolder: false
+    archiveType: zip
+    archiveFile: '$(System.DefaultWorkingDirectory)/functionapp.zip'
+    replaceExistingArchive: true
 
 # Step 6: Deploy Function App Code to Azure
 - task: AzureFunctionApp@2
