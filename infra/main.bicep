@@ -14,7 +14,7 @@ param appServicePlanName string = 'my-node-funcapp-0213-plan'
 param skuName string = 'B1'
 
 //
-// Storage Account
+// Create a Storage Account (required by Function App)
 //
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
@@ -26,7 +26,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
 }
 
 //
-// App Service Plan (Windows - Basic tier)
+// Create an App Service Plan (Windows)
 //
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
@@ -41,7 +41,13 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
 }
 
 //
-// Function App (Node.js 20 on Windows)
+// Retrieve storage account key for Function App
+//
+var storageAccountKey = listKeys(storageAccount.id, '2023-01-01').keys[0].value
+var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccountKey};EndpointSuffix=${environment().suffixes.storage}'
+
+//
+// Create Function App
 //
 resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
   name: functionAppName
@@ -51,7 +57,6 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
     serverFarmId: appServicePlan.id
     siteConfig: {
       appSettings: [
-        // Required settings
         {
           name: 'FUNCTIONS_WORKER_RUNTIME'
           value: 'node'
@@ -61,12 +66,12 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
           value: '~4'
         }
         {
-          name: 'WEBSITE_NODE_DEFAULT_VERSION'
-          value: '~20'
+          name: 'AzureWebJobsStorage'
+          value: storageConnectionString
         }
         {
-          name: 'AzureWebJobsStorage'
-          value: storageAccount.getConnectionString()
+          name: 'WEBSITE_NODE_DEFAULT_VERSION'
+          value: '~20'
         }
       ]
       alwaysOn: true
@@ -84,5 +89,5 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
 // Outputs
 //
 output functionAppName string = functionApp.name
-output functionAppUrl string = 'https://${functionApp.properties.defaultHostName}'
 output storageAccountName string = storageAccount.name
+output storageConnectionString string = storageConnectionString
