@@ -5,7 +5,7 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'     # your Azure DevOps service connection name
+  azureSubscription: 'azure-service-connection'     # Azure DevOps service connection name
   resourceGroupName: 'test'
   location: 'Central India'
   templateFile: 'infra/main.bicep'
@@ -13,9 +13,9 @@ variables:
   storageAccountName: 'mynodestorage12345'
 
 steps:
-# Step 1: Create resource group if not exists
+# Step 1: Ensure Resource Group Exists
 - task: AzureCLI@2
-  displayName: 'Create Resource Group (if not exists)'
+  displayName: 'Ensure Resource Group Exists'
   inputs:
     azureSubscription: $(azureSubscription)
     scriptType: bash
@@ -29,9 +29,9 @@ steps:
         echo "Resource group $(resourceGroupName) already exists."
       fi
 
-# Step 2: Deploy infrastructure
+# Step 2: Deploy Function App Infrastructure using Bicep
 - task: AzureCLI@2
-  displayName: 'Deploy Function App (Bicep)'
+  displayName: 'Deploy Function App Infrastructure (Bicep)'
   inputs:
     azureSubscription: $(azureSubscription)
     scriptType: bash
@@ -41,11 +41,13 @@ steps:
       az deployment group create \
         --resource-group $(resourceGroupName) \
         --template-file $(templateFile) \
-        --parameters location="$(location)" || exit 1
+        --parameters location="$(location)" \
+        --parameters functionAppName=$(functionAppName) \
+        --parameters storageAccountName=$(storageAccountName) || exit 1
 
-# Step 3: Configure Function App Storage connection
+# Step 3: Set AzureWebJobsStorage Connection
 - task: AzureCLI@2
-  displayName: 'Configure AzureWebJobsStorage'
+  displayName: 'Set AzureWebJobsStorage Connection'
   inputs:
     azureSubscription: $(azureSubscription)
     scriptType: bash
@@ -54,27 +56,42 @@ steps:
       echo "Fetching storage account key..."
       key=$(az storage account keys list --account-name $(storageAccountName) --query "[0].value" -o tsv)
       conn="DefaultEndpointsProtocol=https;AccountName=$(storageAccountName);AccountKey=$key;EndpointSuffix=core.windows.net"
-      echo "Setting AzureWebJobsStorage..."
+      echo "Updating AzureWebJobsStorage setting..."
       az functionapp config appsettings set \
         --name $(functionAppName) \
         --resource-group $(resourceGroupName) \
         --settings AzureWebJobsStorage="$conn"
 
-# Step 4: Clone application code from another branch
+# Step 4: Clone Function App Code Branch
 - task: Bash@3
   displayName: 'Clone Function App Code (function-app-code branch)'
   inputs:
     targetType: inline
     script: |
+      echo "Cloning function-app-code branch..."
       git clone --branch function-app-code https://github.com/Poornima126/Bicep-Testing.git function-app-code
       echo "Code cloned successfully"
       ls -R function-app-code
 
-# Step 5: Deploy Function App code
+# Step 5: Install dependencies and create zip package
+- task: Bash@3
+  displayName: 'Install dependencies and zip Function App code'
+  inputs:
+    targetType: inline
+    script: |
+      echo "Zipping Function App code..."
+      cd function-app-code/functionapp
+      npm install --omit=dev
+      zip -r ../../functionapp.zip .
+      cd ../..
+      echo "Zip package created successfully:"
+      ls -lh functionapp.zip
+
+# Step 6: Deploy Function App Code to Azure
 - task: AzureFunctionApp@2
-  displayName: 'Deploy Function App Code'
+  displayName: 'Deploy Function App Code to Azure'
   inputs:
     azureSubscription: $(azureSubscription)
     appType: functionApp
     appName: $(functionAppName)
-    package: '$(System.DefaultWorkingDirectory)/function-app-code'
+    package: '$(System.DefaultWorkingDirectory)/functionapp.zip'
