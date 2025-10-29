@@ -1,20 +1,37 @@
 trigger:
-- main
+- function-app
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'
+  azureSubscription: 'azure-service-connection'     # your Azure DevOps service connection name
   resourceGroupName: 'test'
   location: 'Central India'
   templateFile: 'infra/main.bicep'
   functionAppName: 'my-node-funcapp-0213'
-  storageAccountName: 'mynodestorage12345'   # must match what's in Bicep
+  storageAccountName: 'mynodestorage12345'
 
 steps:
+# Step 1: Create resource group if not exists
 - task: AzureCLI@2
-  displayName: 'Deploy Function App Infrastructure'
+  displayName: 'Create Resource Group (if not exists)'
+  inputs:
+    azureSubscription: $(azureSubscription)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      echo "Checking if resource group $(resourceGroupName) exists..."
+      if ! az group show --name $(resourceGroupName) &>/dev/null; then
+        echo "Creating resource group: $(resourceGroupName)"
+        az group create --name $(resourceGroupName) --location "$(location)"
+      else
+        echo "Resource group $(resourceGroupName) already exists."
+      fi
+
+# Step 2: Deploy infrastructure
+- task: AzureCLI@2
+  displayName: 'Deploy Function App (Bicep)'
   inputs:
     azureSubscription: $(azureSubscription)
     scriptType: bash
@@ -26,8 +43,9 @@ steps:
         --template-file $(templateFile) \
         --parameters location="$(location)" || exit 1
 
+# Step 3: Configure Function App Storage connection
 - task: AzureCLI@2
-  displayName: 'Configure Storage Connection String for Function App'
+  displayName: 'Configure AzureWebJobsStorage'
   inputs:
     azureSubscription: $(azureSubscription)
     scriptType: bash
@@ -36,25 +54,27 @@ steps:
       echo "Fetching storage account key..."
       key=$(az storage account keys list --account-name $(storageAccountName) --query "[0].value" -o tsv)
       conn="DefaultEndpointsProtocol=https;AccountName=$(storageAccountName);AccountKey=$key;EndpointSuffix=core.windows.net"
-      echo "Updating AzureWebJobsStorage setting..."
+      echo "Setting AzureWebJobsStorage..."
       az functionapp config appsettings set \
         --name $(functionAppName) \
         --resource-group $(resourceGroupName) \
         --settings AzureWebJobsStorage="$conn"
 
+# Step 4: Clone application code from another branch
 - task: Bash@3
-  displayName: 'Clone Function App Code'
+  displayName: 'Clone Function App Code (function-app-code branch)'
   inputs:
     targetType: inline
     script: |
-      git clone --branch function-app-code https://github.com/Poornima126/Bicep-Testing.git function-code
-      cd function-code
+      git clone --branch function-app-code https://github.com/Poornima126/Bicep-Testing.git function-app-code
       echo "Code cloned successfully"
+      ls -R function-app-code
 
+# Step 5: Deploy Function App code
 - task: AzureFunctionApp@2
   displayName: 'Deploy Function App Code'
   inputs:
     azureSubscription: $(azureSubscription)
     appType: functionApp
     appName: $(functionAppName)
-    package: '$(System.DefaultWorkingDirectory)/function-code'
+    package: '$(System.DefaultWorkingDirectory)/function-app-code'
