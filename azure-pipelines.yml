@@ -8,7 +8,7 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'  # Your Azure DevOps service connection name
+  azureSubscription: 'azure-service-connection'  # Azure DevOps service connection name
   resourceGroup: 'test'
   location: 'CentralIndia'
   appServicePlanName: 'my-demo-webapp-0213-plan'
@@ -23,6 +23,9 @@ stages:
       - job: DeployInfra
         displayName: "Deploy Azure Infra"
         steps:
+          - checkout: self
+            clean: true
+
           - task: AzureCLI@2
             inputs:
               azureSubscription: $(azureSubscription)
@@ -48,15 +51,23 @@ stages:
       - job: DeployCode
         displayName: "Deploy Function App"
         steps:
+          # ✅ This checks out the specific branch you want
           - checkout: self
-            persistCredentials: true
             clean: true
-            fetchDepth: 1
-            ref: refs/heads/function-app-code
+            persistCredentials: true
+            fetchDepth: 0
+            # This line ensures the right branch is used
+            # NOTE: use a condition to pull from function-app-code branch
+          - script: |
+              echo "Switching to function-app-code branch..."
+              git fetch origin function-app-code
+              git checkout function-app-code
+              git pull origin function-app-code
+            displayName: "Checkout function-app-code branch"
 
           - task: AzureFunctionApp@2
             inputs:
               azureSubscription: $(azureSubscription)
               appType: 'functionAppLinux'
               appName: $(functionAppName)
-              package: '$(System.DefaultWorkingDirectory)/function-app-code'
+              package: '$(System.DefaultWorkingDirectory)'
