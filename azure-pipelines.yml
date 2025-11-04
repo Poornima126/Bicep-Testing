@@ -12,6 +12,9 @@ variables:
   functionAppName: 'my-node-funcapp-0213'
 
 stages:
+# -------------------------------
+# Stage 1: Infrastructure Deployment
+# -------------------------------
 - stage: DeployInfrastructure
   displayName: 'Deploy Infrastructure'
   jobs:
@@ -33,6 +36,9 @@ stages:
             --parameters location=$(location)
           echo "✅ Infra deployed successfully!"
 
+# -------------------------------
+# Stage 2: Function App Deployment
+# -------------------------------
 - stage: DeployFunctionApp
   displayName: 'Deploy Function App Code'
   dependsOn: DeployInfrastructure
@@ -41,20 +47,29 @@ stages:
   - job: DeployFunc
     displayName: 'Function App Deployment'
     steps:
+    # Checkout the function-app-code branch
     - checkout: self
-      persistCredentials: true
       clean: true
-      fetchDepth: 0
-      ref: function-app-code
+      persistCredentials: true
 
+    - script: |
+        echo "🔄 Switching to branch: function-app-code"
+        git fetch origin function-app-code
+        git checkout function-app-code
+      displayName: 'Checkout Function App Branch'
+
+    # Zip the Function App code
     - task: ArchiveFiles@2
       inputs:
         rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
         includeRootFolder: false
         archiveType: 'zip'
         archiveFile: '$(Build.ArtifactStagingDirectory)/functionapp.zip'
+      displayName: 'Archive Function App Code'
 
+    # Deploy to Azure Function App
     - task: AzureFunctionApp@1
+      displayName: 'Deploy to Azure Function App'
       inputs:
         azureSubscription: $(azureSubscription)
         appType: 'functionApp'
