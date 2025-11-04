@@ -1,8 +1,20 @@
+targetScope = 'resourceGroup'
+
+@description('Location for resources')
 param location string
+
+@description('Function App name')
 param functionAppName string
+
+@description('Storage Account name')
 param storageAccountName string
 
-// Storage Account
+@description('App Service Plan name')
+param appServicePlanName string
+
+@description('SKU for App Service Plan')
+param skuName string = 'B1'
+
 resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
   location: location
@@ -12,42 +24,43 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   kind: 'StorageV2'
 }
 
-// Hosting Plan (Consumption Plan)
-resource hostingPlan 'Microsoft.Web/serverfarms@2022-09-01' = {
-  name: '${functionAppName}-plan'
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+  name: appServicePlanName
   location: location
   sku: {
-    name: 'Y1'
-    tier: 'Dynamic'
+    name: skuName
+    tier: 'Basic'
   }
-  kind: 'functionapp'
+  properties: {
+    reserved: false
+  }
 }
 
-// Function App
-resource functionApp 'Microsoft.Web/sites@2022-09-01' = {
+var storageAccountKey = listKeys(storageAccount.id, '2023-01-01').keys[0].value
+var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccountKey};EndpointSuffix=${environment().suffixes.storage}'
+
+resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
   name: functionAppName
   location: location
   kind: 'functionapp'
   properties: {
-    serverFarmId: hostingPlan.id
+    serverFarmId: appServicePlan.id
+    httpsOnly: true
     siteConfig: {
       appSettings: [
-        {
-          name: 'AzureWebJobsStorage'
-          value: storageAccount.properties.primaryEndpoints.blob
-        }
-        {
-          name: 'FUNCTIONS_EXTENSION_VERSION'
-          value: '~4'
-        }
-        {
-          name: 'FUNCTIONS_WORKER_RUNTIME'
-          value: 'node'
-        }
+        { name: 'FUNCTIONS_WORKER_RUNTIME', value: 'node' }
+        { name: 'FUNCTIONS_EXTENSION_VERSION', value: '~4' }
+        { name: 'AzureWebJobsStorage', value: storageConnectionString }
+        { name: 'WEBSITE_NODE_DEFAULT_VERSION', value: '~20' }
       ]
+      alwaysOn: true
+      use32BitWorkerProcess: true
     }
-    httpsOnly: true
   }
+  dependsOn: [
+    storageAccount
+    appServicePlan
+  ]
 }
 
-output functionAppUrl string = functionApp.properties.defaultHostName
+output functionAppName string = functionApp.name

@@ -1,29 +1,58 @@
+targetScope = 'resourceGroup'
+
+@description('Location for all resources')
 param location string
+
+@description('App Service Plan name')
 param appServicePlanName string
+
+@description('App Service name')
 param webAppName string
 
-// App Service Plan
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
+@description('App Service pricing tier')
+param skuName string = 'B1'
+
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
   location: location
   sku: {
-    name: 'B1'
+    name: skuName
     tier: 'Basic'
-    size: 'B1'
+    size: skuName
     capacity: 1
   }
   kind: 'app'
-}
-
-// Web App
-resource webApp 'Microsoft.Web/sites@2022-09-01' = {
-  name: webAppName
-  location: location
   properties: {
-    serverFarmId: appServicePlan.id
-    httpsOnly: true
+    reserved: false
   }
 }
 
-output appServicePlanId string = appServicePlan.id
-output webAppUrl string = webApp.properties.defaultHostName
+resource webApp 'Microsoft.Web/sites@2023-12-01' = {
+  name: webAppName
+  location: location
+  kind: 'app'
+  properties: {
+    serverFarmId: appServicePlan.id
+    httpsOnly: true
+    siteConfig: {
+      alwaysOn: true
+      http20Enabled: true
+      netFrameworkVersion: 'v8.0'
+    }
+  }
+  dependsOn: [
+    appServicePlan
+  ]
+}
+
+resource configMetadata 'Microsoft.Web/sites/config@2023-12-01' = {
+  parent: webApp
+  name: 'metadata'
+  properties: {
+    CURRENT_STACK: 'dotnet'
+    FRAMEWORK: 'dotnet'
+    FRAMEWORK_VERSION: 'v8.0'
+  }
+}
+
+output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
