@@ -1,12 +1,22 @@
-param location string = 'CentralIndia'
+targetScope = 'resourceGroup'
 
-var appServicePlanName = 'my-demo-webapp-0213-plan'
-var webAppName = 'my-demo-webapp-0213'
-var functionAppName = 'my-node-funcapp-0213'
-var storageAccountName = 'mystorageaccountdemo'
+@description('Deployment location')
+param location string = resourceGroup().location
 
-module appServiceModule './modules/appservice/main.bicep' = {
-  name: 'appservice-deploy'
+@description('Shared App Service Plan name')
+param appServicePlanName string
+
+@description('App Service name')
+param webAppName string
+
+@description('Function App name')
+param functionAppName string
+
+@description('Storage Account name')
+param storageAccountName string
+
+module appService 'modules/appservice/main.bicep' = {
+  name: 'deployAppService'
   params: {
     location: location
     appServicePlanName: appServicePlanName
@@ -14,13 +24,16 @@ module appServiceModule './modules/appservice/main.bicep' = {
   }
 }
 
-module functionAppModule './modules/functionapp/main.bicep' = {
-  name: 'functionapp-deploy'
+module functionApp 'modules/functionapp/main.bicep' = {
+  name: 'deployFunctionApp'
   params: {
     location: location
     appServicePlanName: appServicePlanName
     functionAppName: functionAppName
     storageAccountName: storageAccountName
   }
+  dependsOn: [
+    appService
+  ]
 }
 

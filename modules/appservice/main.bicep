@@ -1,31 +1,39 @@
 param location string
 param appServicePlanName string
 param webAppName string
-param skuName string = 'B1' // Basic plan
+param skuName string = 'B1'
 
-// App Service Plan (shared by web app + function app)
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-03-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: appServicePlanName
   location: location
   sku: {
     name: skuName
     tier: 'Basic'
+    size: skuName
+    capacity: 1
   }
   kind: 'app'
+  properties: {
+    reserved: false
+  }
 }
 
-// Web App
-resource webApp 'Microsoft.Web/sites@2022-03-01' = {
+resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   name: webAppName
   location: location
+  kind: 'app'
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
     siteConfig: {
       alwaysOn: true
+      netFrameworkVersion: 'v8.0'
     }
   }
+  dependsOn: [
+    appServicePlan
+  ]
 }
 
 output appServicePlanId string = appServicePlan.id
-output webAppName string = webApp.name
+
