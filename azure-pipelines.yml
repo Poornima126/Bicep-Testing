@@ -1,5 +1,5 @@
 trigger:
-- main    # your infra branch
+- bicep-infra    # your infra branch
 
 pool:
   vmImage: 'ubuntu-latest'
