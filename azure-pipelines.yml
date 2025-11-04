@@ -1,95 +1,51 @@
 trigger:
 - bicep-infra
-- function-app
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
   azureSubscription: 'azure-service-connection'
-  resourceGroupName: 'test'
-  location: 'Central India'
-  templateFile: 'main.bicep'
-  functionAppName: 'my-node-funcapp-0213'
-  storageAccountName: 'mynodestorage12345'
+  location: 'CentralIndia'
+  resourceGroup: 'test'
 
 stages:
-# ===========================
-# Stage 1 - Deploy Infra
-# ===========================
 - stage: Deploy_Infrastructure
-  displayName: "Deploy Infrastructure"
+  displayName: 'Deploy Infrastructure using Bicep'
   jobs:
   - job: DeployInfra
-    displayName: "Deploy App Service + Function App Infra"
     steps:
-    - checkout: self
-
     - task: AzureCLI@2
-      displayName: "Ensure Resource Group Exists"
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Checking if resource group $(resourceGroupName) exists..."
-          if ! az group show --name $(resourceGroupName) &>/dev/null; then
-            echo "Creating resource group: $(resourceGroupName)"
-            az group create --name $(resourceGroupName) --location "$(location)"
-          else
-            echo "Resource group $(resourceGroupName) already exists."
-          fi
-
-    - task: AzureCLI@2
-      displayName: "Deploy All Resources via Bicep Modules"
-      inputs:
-        azureSubscription: $(azureSubscription)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          echo "Deploying App Service + Function App..."
+          echo "🚀 Deploying Infrastructure..."
+          az group create --name $(resourceGroup) --location $(location)
           az deployment group create \
-            --resource-group $(resourceGroupName) \
-            --template-file $(templateFile) \
-            --parameters location="$(location)"
+            --resource-group $(resourceGroup) \
+            --template-file main.bicep \
+            --parameters location=$(location)
+          echo "✅ Infra deployed successfully!"
 
-# ===========================
-# Stage 2 - Deploy Function Code
-# ===========================
 - stage: Deploy_FunctionApp_Code
-  displayName: "Deploy Function App Code"
+  displayName: 'Deploy Function App Code'
   dependsOn: Deploy_Infrastructure
   jobs:
-  - job: DeployFunctionCode
-    displayName: "Deploy Function App"
+  - job: DeployCode
     steps:
     - checkout: self
+      persistCredentials: true
       clean: true
+      fetchDepth: 1
+      submodules: false
 
-    - task: Bash@3
-      displayName: "Clone Function App Code (function-app-code branch)"
-      inputs:
-        targetType: inline
-        script: |
-          echo "Cloning function-app-code branch..."
-          git clone --branch function-app-code https://github.com/Poornima126/Bicep-Testing.git function-app-code
-          echo "Code cloned successfully"
-          ls -R function-app-code
-
-    - task: ArchiveFiles@2
-      displayName: "Archive Function App code"
-      inputs:
-        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/function-app-code/functionapp/functionapp'
-        includeRootFolder: false
-        archiveType: zip
-        archiveFile: '$(System.DefaultWorkingDirectory)/functionapp.zip'
-        replaceExistingArchive: true
+    - checkout: git://$(Build.Repository.Name)@function-app-code
 
     - task: AzureFunctionApp@2
-      displayName: "Deploy Function App Code to Azure"
       inputs:
         azureSubscription: $(azureSubscription)
-        appType: functionApp
-        appName: $(functionAppName)
-        package: '$(System.DefaultWorkingDirectory)/functionapp.zip'
-
+        appType: functionAppLinux
+        appName: 'my-node-funcapp-0213'
+        package: '$(System.DefaultWorkingDirectory)/function-app-code'
