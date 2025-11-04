@@ -1,77 +1,62 @@
 trigger:
-- bicep-infra
-- function-app-code
+  branches:
+    include:
+      - bicep-infra
+      - function-app-code
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'
+  azureSubscription: 'azure-service-connection'  # Your Azure DevOps service connection name
   resourceGroup: 'test'
   location: 'CentralIndia'
+  appServicePlanName: 'my-demo-webapp-0213-plan'
+  webAppName: 'my-demo-webapp-0213'
   functionAppName: 'my-node-funcapp-0213'
+  storageAccountName: 'mystoragefunc0213'
 
 stages:
-# -------------------------------
-# Stage 1: Infrastructure Deployment
-# -------------------------------
-- stage: DeployInfrastructure
-  displayName: 'Deploy Infrastructure'
-  jobs:
-  - job: DeployInfra
-    displayName: 'Bicep Infra Deployment'
-    steps:
-    - checkout: self
+  - stage: Deploy_Infrastructure
+    displayName: "Deploy Bicep Infrastructure"
+    jobs:
+      - job: DeployInfra
+        displayName: "Deploy Azure Infra"
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                echo "🚀 Deploying Infrastructure..."
+                az deployment group create \
+                  --resource-group $(resourceGroup) \
+                  --template-file main.bicep \
+                  --parameters \
+                    location=$(location) \
+                    appServicePlanName=$(appServicePlanName) \
+                    webAppName=$(webAppName) \
+                    functionAppName=$(functionAppName) \
+                    storageAccountName=$(storageAccountName)
+                echo "✅ Infrastructure deployed successfully!"
 
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: $(azureSubscription)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          echo "🚀 Deploying Infrastructure..."
-          az deployment group create \
-            --resource-group $(resourceGroup) \
-            --template-file main.bicep \
-            --parameters location=$(location)
-          echo "✅ Infra deployed successfully!"
+  - stage: Deploy_Function_App
+    displayName: "Deploy Function App Code"
+    dependsOn: Deploy_Infrastructure
+    jobs:
+      - job: DeployCode
+        displayName: "Deploy Function App"
+        steps:
+          - checkout: self
+            persistCredentials: true
+            clean: true
+            fetchDepth: 1
+            ref: refs/heads/function-app-code
 
-# -------------------------------
-# Stage 2: Function App Deployment
-# -------------------------------
-- stage: DeployFunctionApp
-  displayName: 'Deploy Function App Code'
-  dependsOn: DeployInfrastructure
-  condition: succeeded()
-  jobs:
-  - job: DeployFunc
-    displayName: 'Function App Deployment'
-    steps:
-    # Checkout the function-app-code branch
-    - checkout: self
-      clean: true
-      persistCredentials: true
-
-    - script: |
-        echo "🔄 Switching to branch: function-app-code"
-        git fetch origin function-app-code
-        git checkout function-app-code
-      displayName: 'Checkout Function App Branch'
-
-    # Zip the Function App code
-    - task: ArchiveFiles@2
-      inputs:
-        rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
-        includeRootFolder: false
-        archiveType: 'zip'
-        archiveFile: '$(Build.ArtifactStagingDirectory)/functionapp.zip'
-      displayName: 'Archive Function App Code'
-
-    # Deploy to Azure Function App
-    - task: AzureFunctionApp@1
-      displayName: 'Deploy to Azure Function App'
-      inputs:
-        azureSubscription: $(azureSubscription)
-        appType: 'functionApp'
-        appName: $(functionAppName)
-        package: '$(Build.ArtifactStagingDirectory)/functionapp.zip'
+          - task: AzureFunctionApp@2
+            inputs:
+              azureSubscription: $(azureSubscription)
+              appType: 'functionAppLinux'
+              appName: $(functionAppName)
+              package: '$(System.DefaultWorkingDirectory)/function-app-code'

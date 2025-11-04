@@ -1,21 +1,29 @@
-param location string = 'CentralIndia'
+param location string
+param appServicePlanName string
+param webAppName string
 
-module appServiceModule './modules/appservice/main.bicep' = {
-  name: 'appservice-deploy'
-  params: {
-    location: location
-    appServicePlanName: 'my-demo-webapp-0213-plan'
-    webAppName: 'my-demo-webapp-0213'
+// App Service Plan
+resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
+  name: appServicePlanName
+  location: location
+  sku: {
+    name: 'B1'
+    tier: 'Basic'
+    size: 'B1'
+    capacity: 1
+  }
+  kind: 'app'
+}
+
+// Web App
+resource webApp 'Microsoft.Web/sites@2022-09-01' = {
+  name: webAppName
+  location: location
+  properties: {
+    serverFarmId: appServicePlan.id
+    httpsOnly: true
   }
 }
 
-module functionAppModule './modules/functionapp/main.bicep' = {
-  name: 'functionapp-deploy'
-  params: {
-    location: location
-    functionAppName: 'my-node-funcapp-0213'
-    storageAccountName: 'mystorageaccountdemo'
-    appServicePlanName: 'my-demo-webapp-0213-plan'
-  }
-}
-
+output appServicePlanId string = appServicePlan.id
+output webAppUrl string = webApp.properties.defaultHostName

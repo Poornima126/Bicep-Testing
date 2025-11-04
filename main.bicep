@@ -1,19 +1,30 @@
-param location string = 'CentralIndia'
+param location string = resourceGroup().location
 
+// Parameters for App Service
+param appServicePlanName string
+param webAppName string
+
+// Parameters for Function App
+param functionAppName string
+param storageAccountName string
+
+// Deploy App Service Module
 module appServiceModule './modules/appservice/main.bicep' = {
-  name: 'appservice-deploy'
+  name: 'appServiceModule'
   params: {
     location: location
+    appServicePlanName: appServicePlanName
+    webAppName: webAppName
   }
 }
 
+// Deploy Function App Module
 module functionAppModule './modules/functionapp/main.bicep' = {
-  name: 'functionapp-deploy'
+  name: 'functionAppModule'
   params: {
     location: location
-    functionAppName: 'my-node-funcapp-0213'
-    storageAccountName: 'mystorageaccountdemo'
-    appServicePlanName: 'my-demo-webapp-0213-plan'
+    functionAppName: functionAppName
+    storageAccountName: storageAccountName
   }
 }
 

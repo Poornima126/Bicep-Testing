@@ -1,45 +1,53 @@
-@description('Name of the Function App')
-param functionAppName string
-
-@description('Location for all resources')
 param location string
-
-@description('Storage account name to link with Function App')
+param functionAppName string
 param storageAccountName string
 
-@description('App Service plan name')
-param appServicePlanName string
-
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
+// Storage Account
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
+  location: location
+  sku: {
+    name: 'Standard_LRS'
+  }
+  kind: 'StorageV2'
 }
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' existing = {
-  name: appServicePlanName
+// Hosting Plan (Consumption Plan)
+resource hostingPlan 'Microsoft.Web/serverfarms@2022-09-01' = {
+  name: '${functionAppName}-plan'
+  location: location
+  sku: {
+    name: 'Y1'
+    tier: 'Dynamic'
+  }
+  kind: 'functionapp'
 }
 
+// Function App
 resource functionApp 'Microsoft.Web/sites@2022-09-01' = {
   name: functionAppName
   location: location
   kind: 'functionapp'
   properties: {
-    serverFarmId: appServicePlan.id
+    serverFarmId: hostingPlan.id
     siteConfig: {
       appSettings: [
         {
           name: 'AzureWebJobsStorage'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=core.windows.net'
+          value: storageAccount.properties.primaryEndpoints.blob
+        }
+        {
+          name: 'FUNCTIONS_EXTENSION_VERSION'
+          value: '~4'
         }
         {
           name: 'FUNCTIONS_WORKER_RUNTIME'
           value: 'node'
         }
-        {
-          name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
-        }
       ]
     }
+    httpsOnly: true
   }
 }
 
+output functionAppUrl string = functionApp.properties.defaultHostName
