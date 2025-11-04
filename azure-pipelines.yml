@@ -1,78 +1,62 @@
 trigger:
-- bicep-infra    # your infra branch
+- bicep-infra
+- function-app-code
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'   # your service connection name
+  azureSubscription: 'azure-service-connection'
   resourceGroup: 'test'
   location: 'CentralIndia'
-  functionAppName: 'my-demo-funcapp-0213'
-  storageAccountName: 'mydemostorage0213'
-  appServiceName: 'my-demo-webapp-0213'
-  appServicePlanName: 'my-demo-webapp-0213-plan'
+  functionAppName: 'my-node-funcapp-0213'
 
 stages:
-- stage: Infrastructure
+- stage: DeployInfrastructure
   displayName: 'Deploy Infrastructure'
   jobs:
   - job: DeployInfra
-    displayName: 'Deploy Infra using Bicep Modules'
+    displayName: 'Bicep Infra Deployment'
     steps:
     - checkout: self
 
     - task: AzureCLI@2
-      displayName: 'Deploy Infra (App Service + Function App)'
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Deploying infrastructure..."
+          echo "🚀 Deploying Infrastructure..."
           az deployment group create \
             --resource-group $(resourceGroup) \
             --template-file main.bicep \
-            --parameters \
-              location=$(location) \
-              appServiceName=$(appServiceName) \
-              appServicePlanName=$(appServicePlanName) \
-              functionAppName=$(functionAppName) \
-              storageAccountName=$(storageAccountName)
+            --parameters location=$(location)
+          echo "✅ Infra deployed successfully!"
 
-- stage: FunctionAppDeployment
+- stage: DeployFunctionApp
   displayName: 'Deploy Function App Code'
-  dependsOn: Infrastructure
+  dependsOn: DeployInfrastructure
+  condition: succeeded()
   jobs:
-  - job: DeployFunctionCode
-    displayName: 'Zip and Deploy Function App Code'
+  - job: DeployFunc
+    displayName: 'Function App Deployment'
     steps:
     - checkout: self
       persistCredentials: true
-
-    - script: |
-        git fetch origin function-app-code
-        git checkout function-app-code
-      displayName: 'Checkout Function App code branch'
+      clean: true
+      fetchDepth: 0
+      ref: function-app-code
 
     - task: ArchiveFiles@2
-      displayName: 'Archive function app code'
       inputs:
         rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
         includeRootFolder: false
         archiveType: 'zip'
         archiveFile: '$(Build.ArtifactStagingDirectory)/functionapp.zip'
-        replaceExistingArchive: true
 
-    - task: AzureCLI@2
-      displayName: 'Deploy function app code to Azure'
+    - task: AzureFunctionApp@1
       inputs:
         azureSubscription: $(azureSubscription)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          echo "Deploying code to Function App..."
-          az functionapp deployment source config-zip \
-            --resource-group $(resourceGroup) \
-            --name $(functionAppName) \
-            --src "$(Build.ArtifactStagingDirectory)/functionapp.zip"
+        appType: 'functionApp'
+        appName: $(functionAppName)
+        package: '$(Build.ArtifactStagingDirectory)/functionapp.zip'

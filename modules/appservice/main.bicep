@@ -1,27 +1,30 @@
-param location string
+param location string = resourceGroup().location
 param appServicePlanName string
-param appServiceName string
+param webAppName string
+param skuName string = 'B1' // Basic tier
 
-// Create App Service Plan
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2022-03-01' = {
   name: appServicePlanName
   location: location
   sku: {
-    name: 'B1'
+    name: skuName
     tier: 'Basic'
-    size: 'B1'
-    capacity: 1
   }
+  kind: 'app'
 }
 
-// Create Web App
-resource webApp 'Microsoft.Web/sites@2022-09-01' = {
-  name: appServiceName
+resource webApp 'Microsoft.Web/sites@2022-03-01' = {
+  name: webAppName
   location: location
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
+    siteConfig: {
+      alwaysOn: true
+    }
   }
 }
 
+output webAppName string = webApp.name
 output appServicePlanId string = appServicePlan.id
+

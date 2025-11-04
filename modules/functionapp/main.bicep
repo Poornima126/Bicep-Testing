@@ -1,46 +1,44 @@
-param location string
+param location string = resourceGroup().location
 param functionAppName string
-param appServicePlanId string
+param hostingPlanName string
 param storageAccountName string
-param storageConnectionString string
+param runtimeStack string = 'dotnet-isolated'
 
-resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   name: storageAccountName
+  location: location
+  sku: {
+    name: 'Standard_LRS'
+  }
+  kind: 'StorageV2'
 }
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' existing = {
-  id: appServicePlanId
+resource hostingPlan 'Microsoft.Web/serverfarms@2022-03-01' = {
+  name: hostingPlanName
+  location: location
+  sku: {
+    name: 'Y1'
+    tier: 'Dynamic'
+  }
+  kind: 'functionapp'
 }
 
-resource functionApp 'Microsoft.Web/sites@2022-09-01' = {
+resource functionApp 'Microsoft.Web/sites@2022-03-01' = {
   name: functionAppName
   location: location
   kind: 'functionapp'
-  identity: {
-    type: 'SystemAssigned'
-  }
   properties: {
-    serverFarmId: appServicePlan.id
+    serverFarmId: hostingPlan.id
     siteConfig: {
       appSettings: [
-        {
-          name: 'AzureWebJobsStorage'
-          value: storageConnectionString
-        }
-        {
-          name: 'FUNCTIONS_EXTENSION_VERSION'
-          value: '~4'
-        }
-        {
-          name: 'FUNCTIONS_WORKER_RUNTIME'
-          value: 'dotnet'
-        }
-        {
-          name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
-        }
+        { name: 'AzureWebJobsStorage'; value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=core.windows.net' }
+        { name: 'FUNCTIONS_EXTENSION_VERSION'; value: '~4' }
+        { name: 'FUNCTIONS_WORKER_RUNTIME'; value: runtimeStack }
       ]
     }
-    httpsOnly: true
   }
 }
+
+output functionAppName string = functionApp.name
+output storageAccountName string = storageAccount.name
+
