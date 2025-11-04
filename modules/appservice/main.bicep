@@ -1,30 +1,21 @@
-param location string = resourceGroup().location
-param appServicePlanName string
-param webAppName string
-param skuName string = 'B1' // Basic tier
+param location string = 'CentralIndia'
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-03-01' = {
-  name: appServicePlanName
-  location: location
-  sku: {
-    name: skuName
-    tier: 'Basic'
-  }
-  kind: 'app'
-}
-
-resource webApp 'Microsoft.Web/sites@2022-03-01' = {
-  name: webAppName
-  location: location
-  properties: {
-    serverFarmId: appServicePlan.id
-    httpsOnly: true
-    siteConfig: {
-      alwaysOn: true
-    }
+module appServiceModule './modules/appservice/main.bicep' = {
+  name: 'appservice-deploy'
+  params: {
+    location: location
+    appServicePlanName: 'my-demo-webapp-0213-plan'
+    webAppName: 'my-demo-webapp-0213'
   }
 }
 
-output webAppName string = webApp.name
-output appServicePlanId string = appServicePlan.id
+module functionAppModule './modules/functionapp/main.bicep' = {
+  name: 'functionapp-deploy'
+  params: {
+    location: location
+    functionAppName: 'my-node-funcapp-0213'
+    storageAccountName: 'mystorageaccountdemo'
+    appServicePlanName: 'my-demo-webapp-0213-plan'
+  }
+}
 
