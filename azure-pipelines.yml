@@ -1,93 +1,79 @@
 trigger:
-- function-app
+  branches:
+    include:
+      - main
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  azureSubscription: 'azure-service-connection'     # Azure DevOps service connection name
+  azureSubscription: 'azure-service-connection'
   resourceGroupName: 'test'
   location: 'Central India'
-  templateFile: 'infra/main.bicep'
   functionAppName: 'my-node-funcapp-0213'
-  storageAccountName: 'mynodestorage12345'
 
-steps:
-# Step 1: Ensure Resource Group Exists
-- task: AzureCLI@2
-  displayName: 'Ensure Resource Group Exists'
-  inputs:
-    azureSubscription: $(azureSubscription)
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      echo "Checking if resource group $(resourceGroupName) exists..."
-      if ! az group show --name $(resourceGroupName) &>/dev/null; then
-        echo "Creating resource group: $(resourceGroupName)"
-        az group create --name $(resourceGroupName) --location "$(location)"
-      else
-        echo "Resource group $(resourceGroupName) already exists."
-      fi
+stages:
 
-# Step 2: Deploy Function App Infrastructure using Bicep
-- task: AzureCLI@2
-  displayName: 'Deploy Function App Infrastructure (Bicep)'
-  inputs:
-    azureSubscription: $(azureSubscription)
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      echo "Deploying Function App infrastructure..."
-      az deployment group create \
-        --resource-group $(resourceGroupName) \
-        --template-file $(templateFile) \
-        --parameters location="$(location)" \
-        --parameters functionAppName=$(functionAppName) \
-        --parameters storageAccountName=$(storageAccountName) || exit 1
+# ========================
+# Stage 1 - Deploy Infra (AppService + FunctionApp)
+# ========================
+- stage: Deploy_Infra
+  displayName: 'Deploy all infrastructure (Bicep Modules)'
+  jobs:
+  - job: deployInfra
+    displayName: 'Deploy AppService + FunctionApp'
+    steps:
+    - task: AzureCLI@2
+      displayName: 'Ensure Resource Group Exists'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "Checking if resource group exists..."
+          if ! az group show --name $(resourceGroupName) &>/dev/null; then
+            az group create --name $(resourceGroupName) --location "$(location)"
+          fi
 
-# Step 3: Set AzureWebJobsStorage Connection
-- task: AzureCLI@2
-  displayName: 'Set AzureWebJobsStorage Connection'
-  inputs:
-    azureSubscription: $(azureSubscription)
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      echo "Fetching storage account key..."
-      key=$(az storage account keys list --account-name $(storageAccountName) --query "[0].value" -o tsv)
-      conn="DefaultEndpointsProtocol=https;AccountName=$(storageAccountName);AccountKey=$key;EndpointSuffix=core.windows.net"
-      echo "Updating AzureWebJobsStorage setting..."
-      az functionapp config appsettings set \
-        --name $(functionAppName) \
-        --resource-group $(resourceGroupName) \
-        --settings AzureWebJobsStorage="$conn"
+    - task: AzureCLI@2
+      displayName: 'Deploy all Bicep modules'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "Deploying using root main.bicep..."
+          az deployment group create \
+            --resource-group $(resourceGroupName) \
+            --template-file main.bicep \
+            --parameters location="$(location)"
+          echo "✅ All infra deployed successfully!"
 
-# Step 4: Clone Function App Code Branch
-- task: Bash@3
-  displayName: 'Clone Function App Code (function-app-code branch)'
-  inputs:
-    targetType: inline
-    script: |
-      echo "Cloning function-app-code branch..."
-      git clone --branch function-app-code https://github.com/Poornima126/Bicep-Testing.git function-app-code
-      echo "Code cloned successfully"
-      ls -R function-app-code
+# ========================
+# Stage 2 - Deploy Function App Code
+# ========================
+- stage: Deploy_FunctionApp_Code
+  displayName: 'Deploy Function App Code'
+  dependsOn: Deploy_Infra
+  jobs:
+  - job: DeployFunctionCode
+    displayName: 'Deploy function code to Azure'
+    steps:
+    - checkout: self
 
-# Step 5: Archive Function App Code into ZIP
-- task: ArchiveFiles@2
-  displayName: 'Archive Function App code into ZIP'
-  inputs:
-    rootFolderOrFile: '$(System.DefaultWorkingDirectory)/function-app-code/functionapp/functionapp'
-    includeRootFolder: false
-    archiveType: zip
-    archiveFile: '$(System.DefaultWorkingDirectory)/functionapp.zip'
-    replaceExistingArchive: true
+    - task: ArchiveFiles@2
+      displayName: 'Archive function app code'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/functionapp_code'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: '$(System.DefaultWorkingDirectory)/functionapp.zip'
+        replaceExistingArchive: true
 
-# Step 6: Deploy Function App Code to Azure
-- task: AzureFunctionApp@2
-  displayName: 'Deploy Function App Code to Azure'
-  inputs:
-    azureSubscription: $(azureSubscription)
-    appType: functionApp
-    appName: $(functionAppName)
-    package: '$(System.DefaultWorkingDirectory)/functionapp.zip'
+    - task: AzureFunctionApp@2
+      displayName: 'Deploy to Function App'
+      inputs:
+        azureSubscription: $(azureSubscription)
+        appType: functionApp
+        appName: $(functionAppName)
+        package: '$(System.DefaultWorkingDirectory)/functionapp.zip'
