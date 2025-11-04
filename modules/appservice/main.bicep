@@ -1,50 +1,27 @@
-targetScope = 'resourceGroup'
-
-@description('Location for all resources')
-param location string = resourceGroup().location
-
-@description('App Service Plan name')
+param location string
 param appServicePlanName string
+param appServiceName string
 
-@description('App Service name')
-param webAppName string
-
-@description('SKU for the App Service Plan')
-param skuName string = 'B1'
-
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+// Create App Service Plan
+resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
   name: appServicePlanName
   location: location
   sku: {
-    name: skuName
+    name: 'B1'
     tier: 'Basic'
-    size: skuName
+    size: 'B1'
     capacity: 1
-  }
-  kind: 'app'
-  properties: {
-    reserved: false
   }
 }
 
-resource webApp 'Microsoft.Web/sites@2023-12-01' = {
-  name: webAppName
+// Create Web App
+resource webApp 'Microsoft.Web/sites@2022-09-01' = {
+  name: appServiceName
   location: location
-  kind: 'app'
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
-    siteConfig: {
-      alwaysOn: true
-      http20Enabled: true
-      netFrameworkVersion: 'v8.0'
-    }
   }
-  dependsOn: [
-    appServicePlan
-  ]
 }
 
-output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
-output webAppName string = webApp.name
 output appServicePlanId string = appServicePlan.id

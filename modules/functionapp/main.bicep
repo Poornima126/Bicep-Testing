@@ -1,68 +1,46 @@
-targetScope = 'resourceGroup'
-
-@description('Location for resources')
-param location string = resourceGroup().location
-
-@description('Function App name')
+param location string
 param functionAppName string
-
-@description('Storage Account name (must be globally unique)')
+param appServicePlanId string
 param storageAccountName string
+param storageConnectionString string
 
-@description('App Service Plan name')
-param appServicePlanName string
-
-@description('SKU for App Service Plan')
-param skuName string = 'B1'
-
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' existing = {
   name: storageAccountName
-  location: location
-  sku: {
-    name: 'Standard_LRS'
-  }
-  kind: 'StorageV2'
 }
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
-  name: appServicePlanName
-  location: location
-  sku: {
-    name: skuName
-    tier: 'Basic'
-  }
-  properties: {
-    reserved: false
-  }
+resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' existing = {
+  id: appServicePlanId
 }
 
-var storageAccountKey = listKeys(storageAccount.id, '2023-01-01').keys[0].value
-var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccountKey};EndpointSuffix=${environment().suffixes.storage}'
-
-resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
+resource functionApp 'Microsoft.Web/sites@2022-09-01' = {
   name: functionAppName
   location: location
   kind: 'functionapp'
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     serverFarmId: appServicePlan.id
     siteConfig: {
       appSettings: [
-        { name: 'FUNCTIONS_WORKER_RUNTIME'; value: 'node' }
-        { name: 'FUNCTIONS_EXTENSION_VERSION'; value: '~4' }
-        { name: 'AzureWebJobsStorage'; value: storageConnectionString }
-        { name: 'WEBSITE_NODE_DEFAULT_VERSION'; value: '~20' }
+        {
+          name: 'AzureWebJobsStorage'
+          value: storageConnectionString
+        }
+        {
+          name: 'FUNCTIONS_EXTENSION_VERSION'
+          value: '~4'
+        }
+        {
+          name: 'FUNCTIONS_WORKER_RUNTIME'
+          value: 'dotnet'
+        }
+        {
+          name: 'WEBSITE_RUN_FROM_PACKAGE'
+          value: '1'
+        }
       ]
-      alwaysOn: true
-      use32BitWorkerProcess: true
     }
     httpsOnly: true
   }
-  dependsOn: [
-    storageAccount
-    appServicePlan
-  ]
 }
-
-output functionAppName string = functionApp.name
-output storageAccountName string = storageAccount.name
-output storageConnectionString string = storageConnectionString
