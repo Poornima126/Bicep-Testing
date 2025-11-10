@@ -6,20 +6,29 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  # 🔹 Secure variable groups (from Library)
-  - group: 'AppService-Variables'
-  - group: 'FunctionApp-Variables'
+# Secure variable groups
+- group: AppService-Variables
+- group: FunctionApp-Variables
 
-  # 🔹 Static variables
-  azureSubscription: 'azure-service-connection'
-  resourceGroupName: 'viziapps-prod'
-  location: 'Central India'
-  templateFile: 'main.bicep'
-  webAppPlanName: 'ASP-viziap-standard-prod'
-  functionAppPlanName: 'ASP-viziap-standard-prod-functionapp'
-  webAppName: 'my-demo-webapp-0213'
-  functionAppName: 'my-node-funcapp-0213'
-  storageAccountName: 'mynodestorage12345'
+# Static pipeline variables
+- name: azureSubscription
+  value: 'azure-service-connection'
+- name: resourceGroupName
+  value: 'viziapps-prod'
+- name: location
+  value: 'Central India'
+- name: templateFile
+  value: 'main.bicep'
+- name: webAppPlanName
+  value: 'ASP-viziap-standard-prod'
+- name: functionAppPlanName
+  value: 'ASP-viziap-standard-prod-functionapp'
+- name: webAppName
+  value: 'my-demo-webapp-0213'
+- name: functionAppName
+  value: 'my-node-funcapp-0213'
+- name: storageAccountName
+  value: 'mynodestorage12345'
 
 stages:
 # ===========================
@@ -54,12 +63,13 @@ stages:
           az deployment group create \
             --resource-group $(resourceGroupName) \
             --template-file $(templateFile) \
-            --parameters location="$(location)" \
-                         webAppPlanName="$(webAppPlanName)" \
-                         functionAppPlanName="$(functionAppPlanName)" \
-                         webAppName="$(webAppName)" \
-                         functionAppName="$(functionAppName)" \
-                         storageAccountName="$(storageAccountName)"
+            --parameters \
+              location="$(location)" \
+              webAppPlanName="$(webAppPlanName)" \
+              functionAppPlanName="$(functionAppPlanName)" \
+              webAppName="$(webAppName)" \
+              functionAppName="$(functionAppName)" \
+              storageAccountName="$(storageAccountName)"
 
 # ===========================
 # Stage 2 - Deploy Function App Code
@@ -102,13 +112,13 @@ stages:
         package: '$(System.DefaultWorkingDirectory)/functionapp.zip'
 
     - task: AzureCLI@2
-      displayName: "Add Environment Variables from FunctionApp-Variables"
+      displayName: "Add Environment Variables to Function App"
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Applying environment variables to Function App..."
+          echo "Adding environment variables from variable group..."
           az functionapp config appsettings set \
             --name $(functionAppName) \
             --resource-group $(resourceGroupName) \
