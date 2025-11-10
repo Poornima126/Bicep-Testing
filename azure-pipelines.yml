@@ -7,13 +7,16 @@ pool:
 
 variables:
   azureSubscription: 'azure-service-connection'
-  resourceGroupName: 'test'
+  resourceGroupName: 'viziapps-prod'
   location: 'Central India'
   templateFile: 'main.bicep'
+
+  # Existing resources
+  appServicePlanName: 'ASP-viziap-standard-prod'               # Existing App Service Plan for Web App
+  functionAppPlanName: 'ASP-viziap-standard-prod-functionapp'  # Existing Function App Plan
+  webAppName: 'my-demo-webapp-0213'
   functionAppName: 'my-node-funcapp-0213'
   storageAccountName: 'mynodestorage12345'
-  appServicePlanName: 'shared-plan-0213'
-  webAppName: 'my-demo-webapp-0213'
 
 stages:
 # ===========================
@@ -55,6 +58,7 @@ stages:
             --template-file $(templateFile) \
             --parameters location="$(location)" \
             --parameters appServicePlanName="$(appServicePlanName)" \
+            --parameters functionAppPlanName="$(functionAppPlanName)" \
             --parameters webAppName="$(webAppName)" \
             --parameters functionAppName="$(functionAppName)" \
             --parameters storageAccountName="$(storageAccountName)"

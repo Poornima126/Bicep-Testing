@@ -13,16 +13,21 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
   kind: 'StorageV2'
 }
 
+// Reference existing Function App Service Plan
+resource existingFunctionAppPlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
+  name: appServicePlanName
+}
+
 var storageAccountKey = listKeys(storageAccount.id, '2023-01-01').keys[0].value
 var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccountKey};EndpointSuffix=${environment().suffixes.storage}'
 
-// Create the Function App using the shared App Service Plan
+// Create the Function App using existing plan
 resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
   name: functionAppName
   location: location
   kind: 'functionapp'
   properties: {
-    serverFarmId: resourceId('Microsoft.Web/serverfarms', appServicePlanName)
+    serverFarmId: existingFunctionAppPlan.id
     httpsOnly: true
     siteConfig: {
       alwaysOn: true

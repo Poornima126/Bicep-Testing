@@ -3,29 +3,15 @@ targetScope = 'resourceGroup'
 @description('Location for all resources')
 param location string
 
-@description('App Service Plan name')
+@description('Existing App Service Plan name')
 param appServicePlanName string
 
 @description('App Service name')
 param webAppName string
 
-@description('App Service pricing tier')
-param skuName string = 'B1'
-
-// App Service Plan - Windows
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
+// Reference existing App Service Plan
+resource existingAppServicePlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
   name: appServicePlanName
-  location: location
-  sku: {
-    name: skuName
-    tier: 'Basic'
-    size: skuName
-    capacity: 1
-  }
-  kind: 'app' // Windows plan
-  properties: {
-    reserved: false // false = Windows
-  }
 }
 
 // Web App configured for .NET 8 (Windows)
@@ -34,17 +20,16 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   location: location
   kind: 'app'
   properties: {
-    serverFarmId: appServicePlan.id
+    serverFarmId: existingAppServicePlan.id
     httpsOnly: true
     siteConfig: {
       alwaysOn: true
       http20Enabled: true
-      // For Windows App Service to show .NET 8 in portal
       netFrameworkVersion: 'v8.0'
     }
   }
   dependsOn: [
-    appServicePlan
+    existingAppServicePlan
   ]
 }
 
@@ -60,4 +45,4 @@ resource configMetadata 'Microsoft.Web/sites/config@2023-12-01' = {
 }
 
 output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
-output appServicePlanId string = appServicePlan.id
+output appServicePlanId string = existingAppServicePlan.id
