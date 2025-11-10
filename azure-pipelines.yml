@@ -8,12 +8,12 @@ pool:
 variables:
   azureSubscription: 'azure-service-connection'
   resourceGroupName: 'viziapps-prod'
-  location: 'Central India'
+  location: 'Canada Central'
   templateFile: 'main.bicep'
-
-  # Existing resources
-  appServicePlanName: 'ASP-viziap-standard-prod'               # Existing App Service Plan for Web App
-  functionAppPlanName: 'ASP-viziap-standard-prod-functionapp'  # Existing Function App Plan
+  # existing plans
+  appServicePlanName: 'ASP-viziap-standard-prod'
+  functionAppPlanName: 'ASP-viziap-standard-prod-functionapp'
+  # app names
   webAppName: 'my-demo-webapp-0213'
   functionAppName: 'my-node-funcapp-0213'
   storageAccountName: 'mynodestorage12345'
@@ -31,37 +31,23 @@ stages:
     - checkout: self
 
     - task: AzureCLI@2
-      displayName: "Ensure Resource Group Exists"
-      inputs:
-        azureSubscription: $(azureSubscription)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          echo "Checking if resource group $(resourceGroupName) exists..."
-          if ! az group show --name $(resourceGroupName) &>/dev/null; then
-            echo "Creating resource group: $(resourceGroupName)"
-            az group create --name $(resourceGroupName) --location "$(location)"
-          else
-            echo "Resource group $(resourceGroupName) already exists."
-          fi
-
-    - task: AzureCLI@2
       displayName: "Deploy App Service + Function App Infra using Bicep"
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Deploying App Service + Function App Infra..."
+          echo "Deploying infrastructure using existing resource group and plans..."
           az deployment group create \
             --resource-group $(resourceGroupName) \
             --template-file $(templateFile) \
             --parameters location="$(location)" \
-            --parameters appServicePlanName="$(appServicePlanName)" \
-            --parameters functionAppPlanName="$(functionAppPlanName)" \
-            --parameters webAppName="$(webAppName)" \
-            --parameters functionAppName="$(functionAppName)" \
-            --parameters storageAccountName="$(storageAccountName)"
+                         appServicePlanName="$(appServicePlanName)" \
+                         functionAppPlanName="$(functionAppPlanName)" \
+                         webAppName="$(webAppName)" \
+                         functionAppName="$(functionAppName)" \
+                         storageAccountName="$(storageAccountName)"
+          echo "Bicep deployment completed successfully."
 
 # ===========================
 # Stage 2 - Deploy Function Code

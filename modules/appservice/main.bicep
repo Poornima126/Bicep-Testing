@@ -1,48 +1,32 @@
-targetScope = 'resourceGroup'
-
-@description('Location for all resources')
+@description('Location of the App Service')
 param location string
 
 @description('Existing App Service Plan name')
 param appServicePlanName string
 
-@description('App Service name')
+@description('Web App name')
 param webAppName string
 
 // Reference existing App Service Plan
-resource existingAppServicePlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
   name: appServicePlanName
 }
 
-// Web App configured for .NET 8 (Windows)
+// Create Web App under existing plan
 resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   name: webAppName
   location: location
   kind: 'app'
   properties: {
-    serverFarmId: existingAppServicePlan.id
+    serverFarmId: appServicePlan.id
     httpsOnly: true
     siteConfig: {
       alwaysOn: true
-      http20Enabled: true
-      netFrameworkVersion: 'v8.0'
+      ftpsState: 'Disabled'
+      linuxFxVersion: 'DOTNETCORE|8.0'
     }
   }
-  dependsOn: [
-    existingAppServicePlan
-  ]
 }
 
-// Ensure portal/runtime metadata shows .NET 8
-resource configMetadata 'Microsoft.Web/sites/config@2023-12-01' = {
-  parent: webApp
-  name: 'metadata'
-  properties: {
-    CURRENT_STACK: 'dotnet'
-    FRAMEWORK: 'dotnet'
-    FRAMEWORK_VERSION: 'v8.0'
-  }
-}
-
-output webAppUrl string = 'https://${webApp.properties.defaultHostName}'
-output appServicePlanId string = existingAppServicePlan.id
+output webAppName string = webApp.name
+output webAppDefaultHostName string = webApp.properties.defaultHostName
