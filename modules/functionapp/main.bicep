@@ -1,62 +1,54 @@
-@description('Location of the Function App')
 param location string
-
-@description('Existing App Service Plan name for the Function App')
 param appServicePlanName string
-
-@description('Function App name')
 param functionAppName string
-
-@description('Storage account name to link with Function App')
 param storageAccountName string
 
-// Reference existing Function App plan
-resource functionPlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
+// ✅ Reference existing Storage Account (does not recreate)
+resource existingStorageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' existing = {
+  name: storageAccountName
+}
+
+// ✅ Reference existing Function App Plan
+resource existingFunctionAppPlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
   name: appServicePlanName
 }
 
-// Create or reference storage account
-resource storageAccount 'Microsoft.Storage/storageAccounts@2023-01-01' = {
-  name: storageAccountName
-  location: location
-  sku: {
-    name: 'Standard_LRS'
-  }
-  kind: 'StorageV2'
-  properties: {}
-}
+// ✅ Retrieve Storage Account Key & Connection String
+var storageAccountKey = listKeys(existingStorageAccount.id, '2023-01-01').keys[0].value
+var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${existingStorageAccount.name};AccountKey=${storageAccountKey};EndpointSuffix=${environment().suffixes.storage}'
 
-// Create Function App using existing plan
+// ✅ Create the Function App using existing plan and storage
 resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
   name: functionAppName
   location: location
   kind: 'functionapp'
   properties: {
-    serverFarmId: functionPlan.id
+    serverFarmId: existingFunctionAppPlan.id
     httpsOnly: true
     siteConfig: {
-      ftpsState: 'Disabled'
-      linuxFxVersion: 'NODE|20'
+      alwaysOn: true
       appSettings: [
-        {
-          name: 'FUNCTIONS_EXTENSION_VERSION'
-          value: '~4'
-        }
         {
           name: 'FUNCTIONS_WORKER_RUNTIME'
           value: 'node'
         }
         {
+          name: 'FUNCTIONS_EXTENSION_VERSION'
+          value: '~4'
+        }
+        {
           name: 'AzureWebJobsStorage'
-          value: concat('DefaultEndpointsProtocol=https;AccountName=', storageAccount.name, ';EndpointSuffix=core.windows.net')
+          value: storageConnectionString
+        }
+        {
+          name: 'WEBSITE_NODE_DEFAULT_VERSION'
+          value: '~20'
         }
       ]
     }
   }
-  dependsOn: [
-    storageAccount
-  ]
 }
 
 output functionAppName string = functionApp.name
-output functionAppHostName string = functionApp.properties.defaultHostName
+output storageAccountName string = existingStorageAccount.name
+output storageConnectionString string = storageConnectionString

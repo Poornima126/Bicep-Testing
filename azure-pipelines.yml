@@ -7,16 +7,14 @@ pool:
 
 variables:
   azureSubscription: 'azure-service-connection'
-  resourceGroupName: 'viziapps-prod'
-  location: 'Canada Central'
+  resourceGroupName: 'viziapps-prod'  # ✅ existing RG
+  location: 'Central India'
   templateFile: 'main.bicep'
-  # existing plans
-  appServicePlanName: 'ASP-viziap-standard-prod'
-  functionAppPlanName: 'ASP-viziap-standard-prod-functionapp'
-  # app names
-  webAppName: 'my-demo-webapp-0213'
   functionAppName: 'my-node-funcapp-0213'
   storageAccountName: 'mynodestorage12345'
+  webAppPlanName: 'ASP-viziap-standard-prod'               # ✅ existing app service plan
+  functionAppPlanName: 'ASP-viziap-standard-prod-functionapp'  # ✅ existing function app plan
+  webAppName: 'my-demo-webapp-0213'
 
 stages:
 # ===========================
@@ -37,17 +35,16 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Deploying infrastructure using existing resource group and plans..."
+          echo "Deploying App Service + Function App Infra..."
           az deployment group create \
             --resource-group $(resourceGroupName) \
             --template-file $(templateFile) \
             --parameters location="$(location)" \
-                         appServicePlanName="$(appServicePlanName)" \
-                         functionAppPlanName="$(functionAppPlanName)" \
-                         webAppName="$(webAppName)" \
-                         functionAppName="$(functionAppName)" \
-                         storageAccountName="$(storageAccountName)"
-          echo "Bicep deployment completed successfully."
+            --parameters webAppPlanName="$(webAppPlanName)" \
+            --parameters functionAppPlanName="$(functionAppPlanName)" \
+            --parameters webAppName="$(webAppName)" \
+            --parameters functionAppName="$(functionAppName)" \
+            --parameters storageAccountName="$(storageAccountName)"
 
 # ===========================
 # Stage 2 - Deploy Function Code

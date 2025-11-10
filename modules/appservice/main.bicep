@@ -1,33 +1,33 @@
-@description('Location of the App Service')
+targetScope = 'resourceGroup'
+
+@description('Location for all resources')
 param location string
 
 @description('Existing App Service Plan name')
 param appServicePlanName string
 
-@description('Web App name')
+@description('App Service name')
 param webAppName string
 
-// Reference existing App Service Plan
-resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
+// Reference the existing App Service Plan
+resource existingAppServicePlan 'Microsoft.Web/serverfarms@2023-12-01' existing = {
   name: appServicePlanName
 }
 
-// Create Web App under existing plan
+// Create the Web App
 resource webApp 'Microsoft.Web/sites@2023-12-01' = {
   name: webAppName
   location: location
   kind: 'app'
   properties: {
-    serverFarmId: appServicePlan.id
+    serverFarmId: existingAppServicePlan.id
     httpsOnly: true
     siteConfig: {
       alwaysOn: true
-      ftpsState: 'Disabled'
+      http20Enabled: true
       netFrameworkVersion: 'v8.0'
-      use32BitWorkerProcess: false
     }
   }
 }
 
-output webAppName string = webApp.name
-output webAppDefaultHostName string = webApp.properties.defaultHostName
+output webAppUrl string = 'https://${webApp.properties.defaultHostName}'

@@ -4,9 +4,9 @@ targetScope = 'resourceGroup'
 param location string = resourceGroup().location
 
 @description('Existing App Service Plan name for Web App')
-param appServicePlanName string
+param webAppPlanName string
 
-@description('Existing App Service Plan name for Function App')
+@description('Existing Function App Plan name for Function App')
 param functionAppPlanName string
 
 @description('App Service name')
@@ -22,7 +22,7 @@ module appService 'modules/appservice/main.bicep' = {
   name: 'deployAppService'
   params: {
     location: location
-    appServicePlanName: appServicePlanName
+    appServicePlanName: webAppPlanName  // ✅ existing plan
     webAppName: webAppName
   }
 }
@@ -31,7 +31,7 @@ module functionApp 'modules/functionapp/main.bicep' = {
   name: 'deployFunctionApp'
   params: {
     location: location
-    appServicePlanName: functionAppPlanName
+    appServicePlanName: functionAppPlanName  // ✅ existing plan
     functionAppName: functionAppName
     storageAccountName: storageAccountName
   }
@@ -39,4 +39,3 @@ module functionApp 'modules/functionapp/main.bicep' = {
     appService
   ]
 }
-
