@@ -1,20 +1,20 @@
 trigger:
 - bicep-infra
-- function-app
+- function-app-code
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
   azureSubscription: 'azure-service-connection'
-  resourceGroupName: 'viziapps-prod'  # ✅ existing RG
+  resourceGroupName: 'viziapps-prod'                       # ✅ Use existing RG
   location: 'Central India'
   templateFile: 'main.bicep'
-  functionAppName: 'my-node-funcapp-0213'
-  storageAccountName: 'mynodestorage12345'
-  webAppPlanName: 'ASP-viziap-standard-prod'               # ✅ existing app service plan
-  functionAppPlanName: 'ASP-viziap-standard-prod-functionapp'  # ✅ existing function app plan
+  webAppPlanName: 'ASP-viziap-standard-prod'               # ✅ Existing Web App plan
+  functionAppPlanName: 'ASP-viziap-standard-prod-functionapp' # ✅ Existing Function App plan
   webAppName: 'my-demo-webapp-0213'
+  functionAppName: 'my-node-funcapp-0213'
+  storageAccountName: 'mynodestorage12345'                 # ✅ Existing Storage Account
 
 stages:
 # ===========================
@@ -29,25 +29,35 @@ stages:
     - checkout: self
 
     - task: AzureCLI@2
-      displayName: "Deploy App Service + Function App Infra using Bicep"
+      displayName: "Validate Resource Group"
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Deploying App Service + Function App Infra..."
+          echo "Checking if resource group $(resourceGroupName) exists..."
+          az group show --name $(resourceGroupName)
+
+    - task: AzureCLI@2
+      displayName: "Deploy Infra using Bicep"
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "Deploying Web App + Function App using existing plans and storage account..."
           az deployment group create \
             --resource-group $(resourceGroupName) \
             --template-file $(templateFile) \
             --parameters location="$(location)" \
-            --parameters webAppPlanName="$(webAppPlanName)" \
-            --parameters functionAppPlanName="$(functionAppPlanName)" \
-            --parameters webAppName="$(webAppName)" \
-            --parameters functionAppName="$(functionAppName)" \
-            --parameters storageAccountName="$(storageAccountName)"
+                         webAppPlanName="$(webAppPlanName)" \
+                         functionAppPlanName="$(functionAppPlanName)" \
+                         webAppName="$(webAppName)" \
+                         functionAppName="$(functionAppName)" \
+                         storageAccountName="$(storageAccountName)"
 
 # ===========================
-# Stage 2 - Deploy Function Code
+# Stage 2 - Deploy Function App Code
 # ===========================
 - stage: Deploy_FunctionApp_Code
   displayName: "Deploy Function App Code"
