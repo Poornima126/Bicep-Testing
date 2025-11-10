@@ -6,7 +6,7 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-# Secure variable groups
+# Secure variable groups (already defined in Library)
 - group: AppService-Variables
 - group: FunctionApp-Variables
 
@@ -72,49 +72,93 @@ stages:
               storageAccountName="$(storageAccountName)"
 
 # ===========================
-# Stage 2 - Update App Settings
+# Stage 2 - Set App Service Environment Variables
 # ===========================
-- stage: Update_App_Settings
-  displayName: "Update App Service and Function App Settings"
+- stage: Configure_AppService_Env
+  displayName: "Configure App Service Environment Variables"
   dependsOn: Deploy_Infrastructure
+  variables:
+  - group: AppService-Variables
   jobs:
-  - job: UpdateSettings
-    displayName: "Apply Environment Variables"
+  - job: SetAppServiceEnv
+    displayName: "Add Environment Variables to App Service"
     steps:
-    - checkout: none
-
-    # Update App Service Environment Variables
     - task: AzureCLI@2
-      displayName: "Update App Service Environment Variables"
+      displayName: "Apply App Service environment variables (from AppService-Variables)"
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Updating environment variables for App Service: $(webAppName)"
+          echo "Setting App Service application settings from AppService-Variables..."
           az webapp config appsettings set \
-            --name $(webAppName) \
-            --resource-group $(resourceGroupName) \
+            --name "$(webAppName)" \
+            --resource-group "$(resourceGroupName)" \
             --settings \
-              VAR1=$(AppService_VAR1) \
-              VAR2=$(AppService_VAR2) \
-              VAR3=$(AppService_VAR3)
-          echo "App Service environment variables updated successfully."
+              "API_KEY=$(API_KEY)" \
+              "STORAGE_CONNECTION_STRING=$(STORAGE_CONNECTION_STRING)" \
+              "ConnectionStrings__DefaultConnection=$(ConnectionStrings__DefaultConnection)" \
+              "APPINSIGHTS_INSTRUMENTATIONKEY=$(APPINSIGHTS_INSTRUMENTATIONKEY)" \
+              "ENVIRONMENT=$(ENVIRONMENT)" \
+              "VERSION=$(VERSION)"
 
-    # Update Function App Environment Variables
+# ===========================
+# Stage 3 - Deploy Function App Code + Env Vars
+# ===========================
+- stage: Deploy_FunctionApp_Code
+  displayName: "Deploy Function App Code"
+  dependsOn: Configure_AppService_Env
+  variables:
+  - group: FunctionApp-Variables
+  jobs:
+  - job: DeployFunctionCode
+    displayName: "Deploy Function App"
+    steps:
+    - checkout: self
+      clean: true
+
+    - task: Bash@3
+      displayName: "Clone Function App Code (function-app-code branch)"
+      inputs:
+        targetType: inline
+        script: |
+          echo "Cloning function-app-code branch..."
+          git clone --branch function-app-code https://github.com/Poornima126/Bicep-Testing.git function-app-code
+          echo "Code cloned successfully"
+          ls -R function-app-code || true
+
+    - task: ArchiveFiles@2
+      displayName: "Archive Function App code"
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/function-app-code/functionapp/functionapp'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: '$(System.DefaultWorkingDirectory)/functionapp.zip'
+        replaceExistingArchive: true
+
+    - task: AzureFunctionApp@2
+      displayName: "Deploy Function App Code to Azure"
+      inputs:
+        azureSubscription: $(azureSubscription)
+        appType: functionApp
+        appName: $(functionAppName)
+        package: '$(System.DefaultWorkingDirectory)/functionapp.zip'
+
     - task: AzureCLI@2
-      displayName: "Update Function App Environment Variables"
+      displayName: "Apply Function App environment variables (from FunctionApp-Variables)"
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Updating environment variables for Function App: $(functionAppName)"
+          echo "Setting Function App application settings from FunctionApp-Variables..."
           az functionapp config appsettings set \
-            --name $(functionAppName) \
-            --resource-group $(resourceGroupName) \
+            --name "$(functionAppName)" \
+            --resource-group "$(resourceGroupName)" \
             --settings \
-              VAR1=$(FunctionApp_VAR1) \
-              VAR2=$(FunctionApp_VAR2) \
-              VAR3=$(FunctionApp_VAR3)
-          echo "Function App environment variables updated successfully."
+              "API_KEY=$(API_KEY)" \
+              "STORAGE_CONNECTION_STRING=$(STORAGE_CONNECTION_STRING)" \
+              "ConnectionStrings__DefaultConnection=$(ConnectionStrings__DefaultConnection)" \
+              "APPINSIGHTS_INSTRUMENTATIONKEY=$(APPINSIGHTS_INSTRUMENTATIONKEY)" \
+              "ENVIRONMENT=$(ENVIRONMENT)" \
+              "VERSION=$(VERSION)"
