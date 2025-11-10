@@ -6,15 +6,20 @@ pool:
   vmImage: 'ubuntu-latest'
 
 variables:
+  # 🔹 Secure variable groups (from Library)
+  - group: 'AppService-Variables'
+  - group: 'FunctionApp-Variables'
+
+  # 🔹 Static variables
   azureSubscription: 'azure-service-connection'
-  resourceGroupName: 'viziapps-prod'                       # ✅ Use existing RG
+  resourceGroupName: 'viziapps-prod'
   location: 'Central India'
   templateFile: 'main.bicep'
-  webAppPlanName: 'ASP-viziap-standard-prod'               # ✅ Existing Web App plan
-  functionAppPlanName: 'ASP-viziap-standard-prod-functionapp' # ✅ Existing Function App plan
+  webAppPlanName: 'ASP-viziap-standard-prod'
+  functionAppPlanName: 'ASP-viziap-standard-prod-functionapp'
   webAppName: 'my-demo-webapp-0213'
   functionAppName: 'my-node-funcapp-0213'
-  storageAccountName: 'mynodestorage12345'                 # ✅ Existing Storage Account
+  storageAccountName: 'mynodestorage12345'
 
 stages:
 # ===========================
@@ -96,15 +101,20 @@ stages:
         appName: $(functionAppName)
         package: '$(System.DefaultWorkingDirectory)/functionapp.zip'
 
+    # ✅ Securely add environment variables from FunctionApp-Variables group
     - task: AzureCLI@2
-      displayName: "Add Environment Variables to Function App"
+      displayName: "Add Environment Variables from Variable Group (FunctionApp-Variables)"
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Adding environment variables to Function App..."
+          echo "Applying environment variables to Function App..."
           az functionapp config appsettings set \
             --name $(functionAppName) \
             --resource-group $(resourceGroupName) \
-            --settings ENVIRONMENT=production VERSION=1.0.0
+            --settings \
+              API_KEY=$(API_KEY) \
+              STORAGE_CONNECTION_STRING="$(STORAGE_CONNECTION_STRING)" \
+              ConnectionStrings__DefaultConnection="$(ConnectionStrings__DefaultConnection)" \
+              APPINSIGHTS_INSTRUMENTATIONKEY=$(APPINSIGHTS_INSTRUMENTATIONKEY)
