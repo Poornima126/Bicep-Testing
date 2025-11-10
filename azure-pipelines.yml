@@ -1,3 +1,6 @@
+# ===========================
+# Pipeline Triggers
+# ===========================
 trigger:
 - bicep-infra
 - function-app-code
@@ -5,12 +8,8 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
-variables:
-# Secure variable groups (already defined in Library)
-- group: AppService-Variables
-- group: FunctionApp-Variables
-
 # Static pipeline variables
+variables:
 - name: azureSubscription
   value: 'azure-service-connection'
 - name: resourceGroupName
@@ -30,10 +29,10 @@ variables:
 - name: storageAccountName
   value: 'mynodestorage12345'
 
+# ===========================
+# Stage 1 - Deploy Infrastructure
+# ===========================
 stages:
-# ===========================
-# Stage 1 - Deploy Infra
-# ===========================
 - stage: Deploy_Infrastructure
   displayName: "Deploy Infrastructure"
   jobs:
@@ -72,7 +71,7 @@ stages:
               storageAccountName="$(storageAccountName)"
 
 # ===========================
-# Stage 2 - Set App Service Environment Variables
+# Stage 2 - Configure App Service Env Vars
 # ===========================
 - stage: Configure_AppService_Env
   displayName: "Configure App Service Environment Variables"
@@ -95,12 +94,11 @@ stages:
             --name "$(webAppName)" \
             --resource-group "$(resourceGroupName)" \
             --settings \
-              "API_KEY=$(API_KEY)" \
-              "STORAGE_CONNECTION_STRING=$(STORAGE_CONNECTION_STRING)" \
-              "ConnectionStrings__DefaultConnection=$(ConnectionStrings__DefaultConnection)" \
+              "AppService_VAR1=$(AppService_VAR1)" \
+              "AppService_VAR2=$(AppService_VAR2)" \
+              "AppService_VAR3=$(AppService_VAR3)" \
               "APPINSIGHTS_INSTRUMENTATIONKEY=$(APPINSIGHTS_INSTRUMENTATIONKEY)" \
-              "ENVIRONMENT=$(ENVIRONMENT)" \
-              "VERSION=$(VERSION)"
+              "ConnectionStrings__DefaultConnection=$(ConnectionStrings__DefaultConnection)"
 
 # ===========================
 # Stage 3 - Deploy Function App Code + Env Vars
@@ -112,7 +110,7 @@ stages:
   - group: FunctionApp-Variables
   jobs:
   - job: DeployFunctionCode
-    displayName: "Deploy Function App"
+    displayName: "Deploy Function App and Apply Env Vars"
     steps:
     - checkout: self
       clean: true
@@ -156,9 +154,8 @@ stages:
             --name "$(functionAppName)" \
             --resource-group "$(resourceGroupName)" \
             --settings \
+              "FunctionApp_VAR1=$(FunctionApp_VAR1)" \
+              "FunctionApp_VAR2=$(FunctionApp_VAR2)" \
+              "FunctionApp_VAR3=$(FunctionApp_VAR3)" \
               "API_KEY=$(API_KEY)" \
-              "STORAGE_CONNECTION_STRING=$(STORAGE_CONNECTION_STRING)" \
-              "ConnectionStrings__DefaultConnection=$(ConnectionStrings__DefaultConnection)" \
-              "APPINSIGHTS_INSTRUMENTATIONKEY=$(APPINSIGHTS_INSTRUMENTATIONKEY)" \
-              "ENVIRONMENT=$(ENVIRONMENT)" \
-              "VERSION=$(VERSION)"
+              "STORAGE_CONNECTION_STRING=$(STORAGE_CONNECTION_STRING)"
