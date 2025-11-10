@@ -5,12 +5,10 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
+# ==============================================
+# Global Static Variables
+# ==============================================
 variables:
-# Secure variable groups
-- group: AppService-Variables
-- group: FunctionApp-Variables
-
-# Static pipeline variables
 - name: azureSubscription
   value: 'azure-service-connection'
 - name: resourceGroupName
@@ -30,10 +28,10 @@ variables:
 - name: storageAccountName
   value: 'mynodestorage12345'
 
+# ==============================================
+# Stage 1 - Deploy Infra using Bicep
+# ==============================================
 stages:
-# ===========================
-# Stage 1 - Deploy Infra
-# ===========================
 - stage: Deploy_Infrastructure
   displayName: "Deploy Infrastructure"
   jobs:
@@ -71,12 +69,14 @@ stages:
               functionAppName="$(functionAppName)" \
               storageAccountName="$(storageAccountName)"
 
-# ===========================
-# Stage 2 - Deploy Function App Code
-# ===========================
+# ==============================================
+# Stage 2 - Deploy Function App Code + Variables
+# ==============================================
 - stage: Deploy_FunctionApp_Code
   displayName: "Deploy Function App Code"
   dependsOn: Deploy_Infrastructure
+  variables:
+  - group: FunctionApp-Variables       # ✅ Load Function App variable group
   jobs:
   - job: DeployFunctionCode
     displayName: "Deploy Function App"
@@ -118,9 +118,68 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Adding environment variables from variable group..."
+          echo "Applying environment variables from variable group to Function App..."
           az functionapp config appsettings set \
             --name $(functionAppName) \
+            --resource-group $(resourceGroupName) \
+            --settings \
+              "API_KEY=$(API_KEY)" \
+              "STORAGE_CONNECTION_STRING=$(STORAGE_CONNECTION_STRING)" \
+              "ConnectionStrings__DefaultConnection=$(ConnectionStrings__DefaultConnection)" \
+              "APPINSIGHTS_INSTRUMENTATIONKEY=$(APPINSIGHTS_INSTRUMENTATIONKEY)"
+
+# ==============================================
+# Stage 3 - Deploy App Service Code + Variables
+# ==============================================
+- stage: Deploy_AppService_Code
+  displayName: "Deploy App Service Code"
+  dependsOn: Deploy_Infrastructure
+  variables:
+  - group: AppService-Variables        # ✅ Load App Service variable group
+  jobs:
+  - job: DeployWebApp
+    displayName: "Deploy Web App"
+    steps:
+    - checkout: self
+      clean: true
+
+    - task: Bash@3
+      displayName: "Clone Web App Code (main branch)"
+      inputs:
+        targetType: inline
+        script: |
+          echo "Cloning main branch for App Service..."
+          git clone --branch main https://github.com/Poornima126/Bicep-Testing.git webapp-code
+          echo "Code cloned successfully"
+          ls -R webapp-code
+
+    - task: ArchiveFiles@2
+      displayName: "Archive Web App code"
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/webapp-code/webapp'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: '$(System.DefaultWorkingDirectory)/webapp.zip'
+        replaceExistingArchive: true
+
+    - task: AzureWebApp@1
+      displayName: "Deploy Web App Code to Azure"
+      inputs:
+        azureSubscription: $(azureSubscription)
+        appType: webApp
+        appName: $(webAppName)
+        package: '$(System.DefaultWorkingDirectory)/webapp.zip'
+
+    - task: AzureCLI@2
+      displayName: "Add Environment Variables to App Service"
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          echo "Applying environment variables from variable group to App Service..."
+          az webapp config appsettings set \
+            --name $(webAppName) \
             --resource-group $(resourceGroupName) \
             --settings \
               "API_KEY=$(API_KEY)" \
