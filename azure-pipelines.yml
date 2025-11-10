@@ -101,9 +101,8 @@ stages:
         appName: $(functionAppName)
         package: '$(System.DefaultWorkingDirectory)/functionapp.zip'
 
-    # ✅ Securely add environment variables from FunctionApp-Variables group
     - task: AzureCLI@2
-      displayName: "Add Environment Variables from Variable Group (FunctionApp-Variables)"
+      displayName: "Add Environment Variables from FunctionApp-Variables"
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
@@ -114,7 +113,7 @@ stages:
             --name $(functionAppName) \
             --resource-group $(resourceGroupName) \
             --settings \
-              API_KEY=$(API_KEY) \
-              STORAGE_CONNECTION_STRING="$(STORAGE_CONNECTION_STRING)" \
-              ConnectionStrings__DefaultConnection="$(ConnectionStrings__DefaultConnection)" \
-              APPINSIGHTS_INSTRUMENTATIONKEY=$(APPINSIGHTS_INSTRUMENTATIONKEY)
+              "API_KEY=$(API_KEY)" \
+              "STORAGE_CONNECTION_STRING=$(STORAGE_CONNECTION_STRING)" \
+              "ConnectionStrings__DefaultConnection=$(ConnectionStrings__DefaultConnection)" \
+              "APPINSIGHTS_INSTRUMENTATIONKEY=$(APPINSIGHTS_INSTRUMENTATIONKEY)"
