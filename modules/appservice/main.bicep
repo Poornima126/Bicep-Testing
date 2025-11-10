@@ -23,7 +23,6 @@ resource webApp 'Microsoft.Web/sites@2023-12-01' = {
     siteConfig: {
       alwaysOn: true
       ftpsState: 'Disabled'
-      # For Windows App Service Plan, we use netFrameworkVersion
       netFrameworkVersion: 'v8.0'
       use32BitWorkerProcess: false
     }
