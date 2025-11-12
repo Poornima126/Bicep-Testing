@@ -1,9 +1,10 @@
 # ===========================
 # Pipeline Triggers
 # ===========================
-trigger:
-- bicep-infra
-- function-app-code
+# trigger:
+# - bicep-infra
+# - function-app-code
+trigger: none   # <-- manual trigger only
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -58,104 +59,106 @@ stages:
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
-          echo "Deploying Web App + Function App using existing plans and storage account..."
+          echo "Deploying ONLY Web App using existing App Service Plan..."
           az deployment group create \
             --resource-group $(resourceGroupName) \
             --template-file $(templateFile) \
             --parameters \
               location="$(location)" \
               webAppPlanName="$(webAppPlanName)" \
-              functionAppPlanName="$(functionAppPlanName)" \
-              webAppName="$(webAppName)" \
-              functionAppName="$(functionAppName)" \
-              storageAccountName="$(storageAccountName)"
+              webAppName="$(webAppName)"
+          # Commented out below lines for Function App & Storage (can re-enable later)
+          #   functionAppPlanName="$(functionAppPlanName)" \
+          #   functionAppName="$(functionAppName)" \
+          #   storageAccountName="$(storageAccountName)"
 
 # ===========================
 # Stage 2 - Configure App Service Env Vars
 # ===========================
-- stage: Configure_AppService_Env
-  displayName: "Configure App Service Environment Variables"
-  dependsOn: Deploy_Infrastructure
-  variables:
-  - group: AppService-Variables
-  jobs:
-  - job: SetAppServiceEnv
-    displayName: "Add Environment Variables to App Service"
-    steps:
-    - task: AzureCLI@2
-      displayName: "Apply App Service environment variables (from AppService-Variables)"
-      inputs:
-        azureSubscription: $(azureSubscription)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          echo "Setting App Service application settings from AppService-Variables..."
-          az webapp config appsettings set \
-            --name "$(webAppName)" \
-            --resource-group "$(resourceGroupName)" \
-            --settings \
-              "AppService_VAR1=$(AppService_VAR1)" \
-              "AppService_VAR2=$(AppService_VAR2)" \
-              "AppService_VAR3=$(AppService_VAR3)" \
-              "APPINSIGHTS_INSTRUMENTATIONKEY=$(APPINSIGHTS_INSTRUMENTATIONKEY)" \
-              "ConnectionStrings__DefaultConnection=$(ConnectionStrings__DefaultConnection)"
+# - stage: Configure_AppService_Env
+#   displayName: "Configure App Service Environment Variables"
+#   dependsOn: Deploy_Infrastructure
+#   variables:
+#   - group: AppService-Variables
+#   jobs:
+#   - job: SetAppServiceEnv
+#     displayName: "Add Environment Variables to App Service"
+#     steps:
+#     - task: AzureCLI@2
+#       displayName: "Apply App Service environment variables (from AppService-Variables)"
+#       inputs:
+#         azureSubscription: $(azureSubscription)
+#         scriptType: bash
+#         scriptLocation: inlineScript
+#         inlineScript: |
+#           echo "Setting App Service application settings from AppService-Variables..."
+#           az webapp config appsettings set \
+#             --name "$(webAppName)" \
+#             --resource-group "$(resourceGroupName)" \
+#             --settings \
+#               "AppService_VAR1=$(AppService_VAR1)" \
+#               "AppService_VAR2=$(AppService_VAR2)" \
+#               "AppService_VAR3=$(AppService_VAR3)" \
+#               "APPINSIGHTS_INSTRUMENTATIONKEY=$(APPINSIGHTS_INSTRUMENTATIONKEY)" \
+#               "ConnectionStrings__DefaultConnection=$(ConnectionStrings__DefaultConnection)"
 
 # ===========================
 # Stage 3 - Deploy Function App Code + Env Vars
 # ===========================
-- stage: Deploy_FunctionApp_Code
-  displayName: "Deploy Function App Code"
-  dependsOn: Configure_AppService_Env
-  variables:
-  - group: FunctionApp-Variables
-  jobs:
-  - job: DeployFunctionCode
-    displayName: "Deploy Function App and Apply Env Vars"
-    steps:
-    - checkout: self
-      clean: true
+# - stage: Deploy_FunctionApp_Code
+#   displayName: "Deploy Function App Code"
+#   dependsOn: Configure_AppService_Env
+#   variables:
+#   - group: FunctionApp-Variables
+#   jobs:
+#   - job: DeployFunctionCode
+#     displayName: "Deploy Function App and Apply Env Vars"
+#     steps:
+#     - checkout: self
+#       clean: true
 
-    - task: Bash@3
-      displayName: "Clone Function App Code (function-app-code branch)"
-      inputs:
-        targetType: inline
-        script: |
-          echo "Cloning function-app-code branch..."
-          git clone --branch function-app-code https://github.com/Poornima126/Bicep-Testing.git function-app-code
-          echo "Code cloned successfully"
-          ls -R function-app-code || true
+#     - task: Bash@3
+#       displayName: "Clone Function App Code (function-app-code branch)"
+#       inputs:
+#         targetType: inline
+#         script: |
+#           echo "Cloning function-app-code branch..."
+#           git clone --branch function-app-code https://github.com/Poornima126/Bicep-Testing.git function-app-code
+#           echo "Code cloned successfully"
+#           ls -R function-app-code || true
 
-    - task: ArchiveFiles@2
-      displayName: "Archive Function App code"
-      inputs:
-        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/function-app-code/functionapp/functionapp'
-        includeRootFolder: false
-        archiveType: zip
-        archiveFile: '$(System.DefaultWorkingDirectory)/functionapp.zip'
-        replaceExistingArchive: true
+#     - task: ArchiveFiles@2
+#       displayName: "Archive Function App code"
+#       inputs:
+#         rootFolderOrFile: '$(System.DefaultWorkingDirectory)/function-app-code/functionapp/functionapp'
+#         includeRootFolder: false
+#         archiveType: zip
+#         archiveFile: '$(System.DefaultWorkingDirectory)/functionapp.zip'
+#         replaceExistingArchive: true
 
-    - task: AzureFunctionApp@2
-      displayName: "Deploy Function App Code to Azure"
-      inputs:
-        azureSubscription: $(azureSubscription)
-        appType: functionApp
-        appName: $(functionAppName)
-        package: '$(System.DefaultWorkingDirectory)/functionapp.zip'
+#     - task: AzureFunctionApp@2
+#       displayName: "Deploy Function App Code to Azure"
+#       inputs:
+#         azureSubscription: $(azureSubscription)
+#         appType: functionApp
+#         appName: $(functionAppName)
+#         package: '$(System.DefaultWorkingDirectory)/functionapp.zip'
 
-    - task: AzureCLI@2
-      displayName: "Apply Function App environment variables (from FunctionApp-Variables)"
-      inputs:
-        azureSubscription: $(azureSubscription)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          echo "Setting Function App application settings from FunctionApp-Variables..."
-          az functionapp config appsettings set \
-            --name "$(functionAppName)" \
-            --resource-group "$(resourceGroupName)" \
-            --settings \
-              "FunctionApp_VAR1=$(FunctionApp_VAR1)" \
-              "FunctionApp_VAR2=$(FunctionApp_VAR2)" \
-              "FunctionApp_VAR3=$(FunctionApp_VAR3)" \
-              "API_KEY=$(API_KEY)" \
-              "STORAGE_CONNECTION_STRING=$(STORAGE_CONNECTION_STRING)"
+#     - task: AzureCLI@2
+#       displayName: "Apply Function App environment variables (from FunctionApp-Variables)"
+#       inputs:
+#         azureSubscription: $(azureSubscription)
+#         scriptType: bash
+#         scriptLocation: inlineScript
+#         inlineScript: |
+#           echo "Setting Function App application settings from FunctionApp-Variables..."
+#           az functionapp config appsettings set \
+#             --name "$(functionAppName)" \
+#             --resource-group "$(resourceGroupName)" \
+#             --settings \
+#               "FunctionApp_VAR1=$(FunctionApp_VAR1)" \
+#               "FunctionApp_VAR2=$(FunctionApp_VAR2)" \
+#               "FunctionApp_VAR3=$(FunctionApp_VAR3)" \
+#               "API_KEY=$(API_KEY)" \
+#               "STORAGE_CONNECTION_STRING=$(STORAGE_CONNECTION_STRING)"
+
