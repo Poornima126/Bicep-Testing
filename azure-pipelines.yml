@@ -53,7 +53,7 @@ stages:
           az group show --name $(resourceGroupName)
 
     - task: AzureCLI@2
-      displayName: "Deploy Infra using Bicep"
+      displayName: "Deploy ONLY App Service using Bicep"
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
@@ -67,7 +67,7 @@ stages:
               location="$(location)" \
               webAppPlanName="$(webAppPlanName)" \
               webAppName="$(webAppName)"
-          # Commented out below lines for Function App & Storage (can re-enable later)
+          # Commented temporarily for now:
           #   functionAppPlanName="$(functionAppPlanName)" \
           #   functionAppName="$(functionAppName)" \
           #   storageAccountName="$(storageAccountName)"
@@ -161,4 +161,3 @@ stages:
 #               "FunctionApp_VAR3=$(FunctionApp_VAR3)" \
 #               "API_KEY=$(API_KEY)" \
 #               "STORAGE_CONNECTION_STRING=$(STORAGE_CONNECTION_STRING)"
-
